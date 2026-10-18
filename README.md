@@ -21,3 +21,9 @@ Project: `proverbs-31-cleaning` under Khris’ projects. Framework: Other. Root 
 Production: https://proverbs-31-cleaning.vercel.app
 
 Generated assets and their prompts are retained with the source. Screenshot proof files and local Vercel metadata are excluded.
+
+## Automatic deployments
+
+The public `nunster3000/proverbs-31-cleaning` GitHub repository is connected to the Vercel project. Pushes to `main` deploy production; other branches use Vercel previews. The configured repository root is `cinematic-preview/`. Vercel deployment protection currently requires Vercel sign-in to view the hosted demo.
+
+The admin dashboard, live authentication, real availability, outbound email, and payment processing remain deferred.
