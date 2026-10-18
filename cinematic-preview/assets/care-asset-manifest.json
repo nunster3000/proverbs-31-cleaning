@@ -1,0 +1,15 @@
+{
+  "generator": "built-in imagegen",
+  "style": "Warm ivory isometric residential cutaway; no UI, labels, glow or sparkle baked into asset. Reference: care-home.png.",
+  "assets": {
+    "king-suite": "exec-e01258b6-fe06-41a4-a587-f408e104115c.png",
+    "queen-suite": "exec-6109a691-2b80-4c51-b8e6-74fdbec63dda.png",
+    "studio": "exec-47358031-eaed-4067-9b87-55c9ff34ae5c.png",
+    "two-bed-one-bath": "exec-77e9ee42-25c7-4a64-8055-22a02cc64c2c.png",
+    "two-bed-two-bath": "exec-520ee112-8bdc-4ea8-b677-3d008177aba7.png",
+    "three-bed": "exec-1ac9662a-cf31-4872-a3fa-8d783ec856f1.png",
+    "four-bed-two-bath": "exec-09e7ca7f-a10a-4e61-b5f8-fe0e6a5bdac4.png",
+    "four-bed-three-bath": "exec-57913f2f-2cae-4d80-8b1c-912b3d28e490.png",
+    "large-home": "exec-b04a7a4a-e942-4318-a202-cc9d58e41736.png"
+  }
+}

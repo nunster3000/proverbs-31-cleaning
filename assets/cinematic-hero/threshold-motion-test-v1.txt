@@ -1,0 +1,21 @@
+THRESHOLD TO FOYER — MOTION TEST V1
+
+Tool: Runway Gen-4.5, Image to Video
+Input: threshold-reference-v1.png (standalone starting frame)
+Suggested settings: 5 seconds, 16:9, 24 fps, standard output.
+
+VIDEO PROMPT
+In a single continuous shot, the camera slowly dollies forward at eye level through the already-open doorway into the foyer. The nearby door edges slide out of view with natural parallax as the console and bench pass toward the sides of the frame. The camera maintains a level horizon and a fixed focal length, aimed at the archway ahead. It advances only a short distance, easing to a gentle stop inside the foyer before reaching the archway. The furnishings, open doors, architecture, and afternoon lighting remain still and consistent. Smooth, deliberate cinematic movement.
+
+REVIEW
+Look for physical forward movement and foreground parallax, stable straight doorframes and archway, unchanged furniture, consistent light, and a smooth stop. Reject takes with bending walls, morphing objects, flickering details, cuts, or movement through furniture. Generate one take first; change only one prompt detail per revision.
+
+CONTINUATION
+Use the accepted clip's actual final frame as the next clip's starting image to help maintain continuity.
+
+REFERENCE IMAGE PROMPT (built-in imagegen; storyboard used as edit reference)
+Create ONE standalone 16:9 photorealistic cinematic starting frame based on the storyboard's TOP threshold panel. Preserve home identity, architectural layout, warm ivory plaster, natural oak floor, champagne brass, right-side oak console with ceramic branch vase and neutral art, left bench and mirror, central archway and cream living room beyond with dark-framed windows. Camera at human eye height just outside already-open dark front doors, with a clear straight walking path. Natural perspective, level verticals, layered foreground/midground/background depth, soft afternoon sunlight from right, warm neutral grade. Recompose into 16:9 without stretching. No labels, text, dividers, interface, people, or equipment.
+
+SOURCES (checked October 18, 2026)
+https://help.runwayml.com/hc/en-us/articles/46974685288467-Creating-with-Gen-4-5
+https://help.runwayml.com/hc/en-us/articles/48324313115155-Image-to-Video-Prompting-Guide

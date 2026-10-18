@@ -1,0 +1,6 @@
+.vercel/
+.DS_Store
+**/.DS_Store
+cinematic-preview/*-proof.png
+cinematic-preview/preview-proof.png
+**/*-proof.png

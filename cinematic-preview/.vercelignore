@@ -1,0 +1,6 @@
+*-proof.png
+preview-proof.png
+assets/*-prompts.json
+assets/*-manifest.json
+.vercel
+.git
