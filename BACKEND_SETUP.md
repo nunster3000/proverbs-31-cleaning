@@ -23,8 +23,8 @@ There is no customer seed/import. Only the approved service catalog and initial 
 In Supabase Authentication:
 
 - Enable email authentication and require email confirmation.
-- Set the Site URL to `https://proverbs-31-cleaning-seven.vercel.app` for the current deployment.
-- Allow `https://proverbs-31-cleaning-seven.vercel.app/sign-in.html` as a redirect URL. Add your custom domain's equivalent when it is ready. For local testing only, allow `http://127.0.0.1:8766/sign-in.html`.
+- Set the Site URL to `https://www.proverbs31cleaningcoservices.info` for the current deployment.
+- Allow `https://www.proverbs31cleaningcoservices.info/sign-in.html` as a redirect URL. Add your custom domain's equivalent when it is ready. For local testing only, allow `http://127.0.0.1:8766/sign-in.html`.
 - In the email magic-link template, include both the standard `{{ .ConfirmationURL }}` link and the `{{ .Token }}` code so the booking dialog can verify a code without losing the booking form.
 - Configure custom SMTP before real customer use. Supabase's built-in mail service has testing restrictions and rate limits; it is not the business notification delivery system.
 
@@ -40,7 +40,7 @@ In this project's Vercel settings, add these **server environment variables** fo
 | `SUPABASE_URL` | The project's HTTPS API URL |
 | `SUPABASE_ANON_KEY` | Its public anon/publishable key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Its server-only service-role/secret key |
-| `APP_ORIGIN` | The exact HTTPS app origin, currently `https://proverbs-31-cleaning-seven.vercel.app` |
+| `APP_ORIGIN` | The exact HTTPS app origin, currently `https://www.proverbs31cleaningcoservices.info` |
 | `GUEST_CHECKOUT_ENABLED` | Leave `false` initially; see optional guest setup below |
 
 Never put the service-role key in browser JavaScript, HTML, a public environment-variable prefix, Git, or chat. The API returns only the public key. The privileged key is used only by the backend to finalize uploads **after** checking the user's identity, file ownership, and actual file signature.

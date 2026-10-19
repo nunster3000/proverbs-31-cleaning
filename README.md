@@ -18,7 +18,9 @@ Open http://localhost:8765/.
 
 Project: `proverbs-31-cleaning` under Khris’ projects. Framework: Other. Root directory: `cinematic-preview`. No build or install command is required. Output directory: `.`.
 
-Production: https://proverbs-31-cleaning-seven.vercel.app
+Production: https://www.proverbs31cleaningcoservices.info
+
+The apex `https://proverbs31cleaningcoservices.info` permanently redirects to `www`. The business project’s fallback address remains `https://proverbs-31-cleaning-seven.vercel.app`.
 
 Business-owned Vercel team: `proverbs-31-cleaning-co` · Project: `proverbs-31-cleaning`. The original personal-team demo remains separate. Both local Vercel links now point to the business project; run CLI deployments from the repository root because the Vercel project root is `cinematic-preview/`.
 
