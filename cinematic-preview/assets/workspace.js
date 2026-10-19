@@ -1163,6 +1163,11 @@
         ),
         { status: 401 },
       );
+    if (me.role === "owner") {
+      const adminLink=n("a","Admin dashboard");
+      adminLink.href="workspace.html";
+      document.querySelector("header nav").prepend(adminLink);
+    }
     $("#sign-out").hidden = false;
     $("#refresh").hidden = false;
     $("#workspace-role").textContent =
