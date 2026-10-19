@@ -20,6 +20,24 @@
   function refresh() {
     const b = A.read().bookings.find((r) => r.id === record.id);
     if (!b) return;
+    const updatedDate = new Date(b.date + "T12:00:00");
+    visit = updatedDate;
+    arrival = b.arrival;
+    const displayDate = updatedDate.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+    document
+      .querySelectorAll("#overview-date, #booking-date")
+      .forEach((n) => (n.textContent = displayDate));
+    document
+      .querySelectorAll("#overview-window, #booking-window")
+      .forEach((n) => (n.textContent = b.arrival));
+    document.querySelector("#invoice-date").textContent =
+      displayDate + " · " + b.scope;
+
     document
       .querySelectorAll(".care-summary-pending")
       .forEach(
