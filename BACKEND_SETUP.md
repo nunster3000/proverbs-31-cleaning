@@ -97,7 +97,7 @@ Guests receive an anonymous session for submitting a request; they do not get a 
 
 - **Stripe/PayPal/Square:** no processor is connected. Customers cannot simulate payments in connected mode. Owners can record money received externally. A real provider integration must verify signed webhooks and reconcile transactions before enabling online collection.
 - **Business email:** booking, quote, completion, and invoice notifications are stored as `pending_provider` in the outbox. No delivery worker is enabled, so these have not been emailed. Native sign-in emails are handled separately by Supabase Auth.
-- **Calendar integration:** the website database owns connected-mode availability. Google Calendar integration is optional and is not configured.
+- **Proverbs 31 Cal:** the website database owns bookings and availability. The dashboard supports whole days, date ranges/weeks, arrival windows, and custom hours. Any custom-hour overlap closes the affected arrival window to new bookings. Range blocking is atomic and rejects conflicts with existing visits. Google/Apple `.ics` exports are snapshots; external edits do not change this schedule. No external calendar connection or automatic sync is configured.
 - **Long-running recurring schedules:** only the first four visits are created; a future scheduling worker must generate more visits with the same conflict checks.
 - **Launch policies:** confirm working hours, capacity, maximum advance booking (initially 365 days), laundry/file limits, cancellation/refund terms, pricing approval, privacy policy, retention/deletion procedures, and backups before taking real bookings. Orphaned/failed upload cleanup and data retention jobs must be configured before sustained production use.
 

@@ -7,7 +7,10 @@
     customers = [],
     view = "Bookings",
     page = 0,
-    activeId;
+    activeId,
+    calendarDate = new Date().toLocaleDateString("en-CA", {
+      timeZone: "America/New_York",
+    });
   const names = {
       morning: "9:00 AM – 12:00 PM",
       afternoon: "12:00 PM – 3:00 PM",
@@ -243,9 +246,92 @@
             "Your customer database is empty. Bookings and saved profiles create customer records.",
           ),
         );
-    } else if (view === "Calendar") {
-      const c = section("Availability & time blocks");
-      const date = input("date", new Date().toISOString().slice(0, 10));
+    } else if (view === "Proverbs 31 Cal") {
+      const c = section("Proverbs 31 Cal");
+      c.append(
+        n(
+          "p",
+          "This backend schedule controls availability for website, portal, and manual bookings. Exports are personal calendar copies; manage changes here.",
+        ),
+      );
+      const date = input("date", calendarDate),
+        exports = n("div"),
+        grid = n("div", undefined, "calendar-grid"),
+        heading = n("div", undefined, "calendar-heading"),
+        monthTitle = n("h3");
+      let monthBookings = [];
+      const moveMonth = (delta) => {
+        const d = new Date(date.value + "T12:00:00");
+        d.setDate(1);
+        d.setMonth(d.getMonth() + delta);
+        calendarDate =
+          d.getFullYear() +
+          "-" +
+          String(d.getMonth() + 1).padStart(2, "0") +
+          "-01";
+        render();
+      };
+      heading.append(
+        btn("‹ Previous month", () => moveMonth(-1)),
+        monthTitle,
+        btn("Next month ›", () => moveMonth(1)),
+      );
+      c.append(exports, heading, grid);
+      const loadMonth = async () => {
+        const key = date.value.slice(0, 7),
+          d = new Date(key + "-01T12:00:00");
+        monthTitle.textContent = d.toLocaleDateString("en-US", {
+          month: "long",
+          year: "numeric",
+        });
+        grid.replaceChildren();
+        monthBookings = await L.api("calendar", { query: { month: key } });
+        exports.replaceChildren(
+          P31Cal.controls(
+            monthBookings,
+            state.settings?.timezone || "America/New_York",
+          ),
+        );
+        for (const day of ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"])
+          grid.append(n("strong", day));
+        for (let i = 0; i < d.getDay(); i++) grid.append(n("span"));
+        const total = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+        for (let i = 1; i <= total; i++) {
+          const day = key + "-" + String(i).padStart(2, "0"),
+            count = monthBookings.filter((b) => b.visit_date === day).length;
+          const off =
+            !(state.settings?.working_days || []).includes(
+              new Date(day + "T12:00:00").getDay(),
+            ) ||
+            (state.blocks || []).some(
+              (b) => b.visit_date === day && !b.arrival && !b.start_time,
+            );
+          const partial =
+            !off && (state.blocks || []).some((b) => b.visit_date === day);
+          const b = btn(
+            String(i) +
+              (count ? " · " + count + " visit" + (count > 1 ? "s" : "") : ""),
+            () => {
+              calendarDate = day;
+              render();
+            },
+            (off ? "blocked " : partial ? "partial-block " : "") +
+              (count ? "has-visits" : ""),
+          );
+          b.setAttribute(
+            "aria-label",
+            day +
+              " · " +
+              count +
+              " visits" +
+              (off ? " · blocked" : partial ? " · time blocked" : ""),
+          );
+          b.setAttribute("aria-pressed", day === date.value);
+          if (partial) b.append(n("span", "Time blocked"));
+          grid.append(b);
+        }
+        showVisits();
+      };
       const slots = n("div");
       const load = async () => {
         try {
@@ -267,15 +353,75 @@
           msg(e.message);
         }
       };
-      date.onchange = load;
-      c.append(label("Date", date), slots);
+      date.onchange = () => {
+        calendarDate = date.value;
+        load();
+        loadMonth().catch((e) => msg(e.message));
+      };
+      const visits = n("div");
+      const showVisits = () => {
+        visits.replaceChildren(n("h3", "Visits on this date"));
+        const found = monthBookings.filter(
+          (b) => b.visit_date === date.value && b.status !== "cancelled",
+        );
+        found.forEach((b) =>
+          visits.append(
+            btn(
+              (b.customers?.name || "Cleaning") +
+                " · " +
+                names[b.arrival] +
+                " · " +
+                b.status,
+              () => detail(b),
+            ),
+          ),
+        );
+        if (!found.length) visits.append(n("p", "No visits on this date."));
+      };
+      date.addEventListener("change", showVisits);
+      showVisits();
+      c.append(label("Date", date), slots, visits);
       load();
-      const window = choice([["", "Entire day"], ...Object.entries(names)], ""),
+      loadMonth().catch((e) => msg(e.message));
+      const window = choice(
+          [
+            ["", "Entire day"],
+            ["custom", "Custom hours"],
+            ...Object.entries(names),
+          ],
+          "",
+        ),
         reason = input();
       reason.required = true;
+      const through = input("date", date.value),
+        startTime = input("time", "09:00"),
+        endTime = input("time", "12:00");
+      through.required = true;
+      const hours = n("div");
+      hours.hidden = true;
+      hours.append(label("From", startTime), label("Until", endTime));
+      window.onchange = () => (hours.hidden = window.value !== "custom");
+      date.addEventListener("change", () => {
+        through.min = date.value;
+        through.value = date.value;
+      });
+      c.append(
+        btn("Select seven days", () => {
+          const d = new Date(date.value + "T12:00:00");
+          d.setDate(d.getDate() + 6);
+          through.value =
+            d.getFullYear() +
+            "-" +
+            String(d.getMonth() + 1).padStart(2, "0") +
+            "-" +
+            String(d.getDate()).padStart(2, "0");
+        }),
+        hours,
+      );
       form(
         c,
         [
+          ["Through date", through],
           ["Block", window],
           ["Reason", reason],
         ],
@@ -289,7 +435,12 @@
                   action: "block",
                   data: {
                     date: date.value,
-                    arrival: window.value || null,
+                    arrival:
+                      window.value === "custom" ? null : window.value || null,
+                    through: through.value,
+                    start_time:
+                      window.value === "custom" ? startTime.value : null,
+                    end_time: window.value === "custom" ? endTime.value : null,
                     reason: reason.value,
                   },
                 },
@@ -302,7 +453,9 @@
           "p",
           b.visit_date +
             " · " +
-            (names[b.arrival] || "Entire day") +
+            (b.start_time
+              ? b.start_time.slice(0, 5) + "–" + b.end_time.slice(0, 5)
+              : names[b.arrival] || "Entire day") +
             " · " +
             b.reason,
         );
@@ -470,6 +623,13 @@
       info.append(n("p", "Walkthrough review: " + b.review_notes));
     (b.quote_adjustments || []).forEach((a) =>
       info.append(n("p", a.label + " · " + money(a.cents))),
+    );
+    info.append(
+      P31Cal.controls(
+        [b],
+        state.settings?.timezone || "America/New_York",
+        true,
+      ),
     );
     root.append(info);
     if (me.role !== "owner" && b.quote_status === "awaiting_approval")
@@ -1018,7 +1178,7 @@
             "Walkthroughs",
             "Payments",
             "Customers",
-            "Calendar",
+            "Proverbs 31 Cal",
             "Availability",
             "Activity",
           ]

@@ -176,6 +176,33 @@ function createHandler({
       }
       if (user.is_anonymous)
         throw new HttpError(403, "Account sign-in is required for this page.");
+      if (route === "calendar" && req.method === "GET") {
+        if (!owner) throw new HttpError(403, "Owner access required");
+        const month = url.searchParams.get("month");
+        if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month || ""))
+          throw new HttpError(400, "Choose a calendar month");
+        const start = month + "-01",
+          end = new Date(
+            Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5)), 0),
+          )
+            .toISOString()
+            .slice(0, 10);
+        return reply(
+          200,
+          await read(
+            db
+              .from("bookings")
+              .select(
+                "*,customers(name,email,phone,address,access_notes,pet_notes),quote_adjustments(*),payment_records(*),booking_requests(*),walkthrough_files(*)",
+              )
+              .gte("visit_date", start)
+              .lte("visit_date", end)
+              .neq("status", "cancelled")
+              .order("visit_date")
+              .limit(1000),
+          ),
+        );
+      }
       if (route === "bookings" && req.method === "GET") {
         const page = Math.max(
           0,

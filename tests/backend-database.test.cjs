@@ -1,4 +1,4 @@
-const { test } = require("node:test");
+const { test, after } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const {
@@ -10,8 +10,16 @@ const ids = {
   owner: "33333333-3333-4333-8333-333333333333",
 };
 const db = new PGlite({
-  wasmModule: new WebAssembly.Module(fs.readFileSync('cinematic-preview/node_modules/@electric-sql/pglite/dist/pglite.wasm')),
-  fsBundle: new Blob([fs.readFileSync('cinematic-preview/node_modules/@electric-sql/pglite/dist/pglite.data')]),
+  wasmModule: new WebAssembly.Module(
+    fs.readFileSync(
+      "cinematic-preview/node_modules/@electric-sql/pglite/dist/pglite.wasm",
+    ),
+  ),
+  fsBundle: new Blob([
+    fs.readFileSync(
+      "cinematic-preview/node_modules/@electric-sql/pglite/dist/pglite.data",
+    ),
+  ]),
 });
 const bootstrap = `create role anon;create role authenticated;create role service_role;create schema auth;create schema storage;
 create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz);
@@ -375,5 +383,94 @@ test("anonymous sessions cannot manage customer records or enable themselves as 
     /Guest checkout/,
   );
   assert.equal(await rpc("is_owner", []), false);
+});
+
+test("Proverbs 31 Cal blocks custom hours across a week atomically and protects existing visits", async () => {
+  await ready;
+  const d = new Date(day() + "T12:00:00Z");
+  d.setUTCDate(d.getUTCDate() + 120);
+  while (d.getUTCDay() === 0) d.setUTCDate(d.getUTCDate() + 1);
+  const first = d.toISOString().slice(0, 10);
+  d.setUTCDate(d.getUTCDate() + 6);
+  const through = d.toISOString().slice(0, 10);
+  await login("alice");
+  await assert.rejects(
+    () =>
+      rpc("api_owner_schedule", [
+        "block",
+        JSON.stringify({ date: first, through, reason: "Away" }),
+      ]),
+    /Owner/,
+  );
+  await login("owner");
+  await rpc("api_owner_schedule", [
+    "block",
+    JSON.stringify({
+      date: first,
+      through,
+      start_time: "09:30",
+      end_time: "10:30",
+      reason: "Weekly personal time",
+    }),
+  ]);
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int as n from public.time_blocks where visit_date between $1 and $2",
+        [first, through],
+      )
+    ).rows[0].n,
+    7,
+  );
+  const available = await rpc("api_availability", [first, 1]);
+  assert.equal(available[0].morning, false);
+  assert.equal(available[0].afternoon, true);
+  await assert.rejects(
+    () =>
+      rpc("api_owner_schedule", [
+        "block",
+        JSON.stringify({
+          date: first,
+          through,
+          start_time: "12:00",
+          end_time: "09:00",
+          reason: "Invalid",
+        }),
+      ]),
+    /valid/,
+  );
+  await rpc("api_create_booking", [
+    JSON.stringify({
+      name: "Calendar client",
+      email: "calendar@example.com",
+      address: "Example address",
+      service: "standard",
+      space_id: 3,
+      date: first,
+      arrival: "afternoon",
+    }),
+    "dddddddd-dddd-4ddd-8ddd-ddddddddddda",
+  ]);
+  await assert.rejects(
+    () =>
+      rpc("api_owner_schedule", [
+        "block",
+        JSON.stringify({ date: first, through, reason: "Whole week" }),
+      ]),
+    /Nothing was changed/,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int as n from public.time_blocks where visit_date between $1 and $2",
+        [first, through],
+      )
+    ).rows[0].n,
+    7,
+  );
+});
+
+after(async () => {
+  await ready;
   await db.close();
 });

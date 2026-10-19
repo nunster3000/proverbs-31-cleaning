@@ -197,7 +197,12 @@ window.P31Admin = (() => {
       !d.availability.days.includes(day) ||
       !d.availability.blocks.includes(block) ||
       d.availability.blocked.some(
-        (x) => x.date === date && (!x.block || x.block === block),
+        (x) =>
+          x.date === date &&
+          (x.startTime
+            ? x.startTime < (block === blocks[0] ? "12:00" : "15:00") &&
+              x.endTime > (block === blocks[0] ? "09:00" : "12:00")
+            : !x.block || x.block === block),
       )
     )
       return false;

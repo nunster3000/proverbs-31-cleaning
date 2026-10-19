@@ -80,3 +80,9 @@ npm run dev
 ```
 
 Open `http://127.0.0.1:8766/`. Vercel runs the same static build and `api/app.js` server function. The public output is `dist/`, which excludes server sources, environment files, and migrations. SQL/RLS tests use a real embedded PostgreSQL engine with Supabase Auth/Storage schema fixtures; hosted Auth, Storage, SMTP, CAPTCHA, and deployment integration require verification after configuration.
+
+### Proverbs 31 Cal
+
+The owner calendar manages manual, website, and customer-portal bookings. Block an entire day, a seven-day range, a longer date range (up to one year), an arrival window, or custom hours. Existing visits must be moved or cancelled before overlapping time can be blocked. Partial-hour blocks close overlapping arrival windows. The live demo uses browser storage; the prepared Supabase mode applies the same rules on the backend when connected.
+
+Use **Google Calendar** for import guidance, or download `.ics` for Google/Apple Calendar. Exports include visit contact names, addresses, and arrival windows, but no access instructions, walkthrough media, or payment details. Exports are snapshots, not sync; external changes never control website availability. The demo exports all noncancelled visits; the connected calendar exports its displayed month.

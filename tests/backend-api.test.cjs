@@ -98,6 +98,15 @@ test("protected requests require a verified session and do not trust caller-prov
     ).value.error,
     "Owner access required",
   );
+  assert.equal(
+    (
+      await call(h, {
+        url: "/api/app?route=calendar&month=2026-10",
+        token: "valid",
+      })
+    ).value.error,
+    "Owner access required",
+  );
   assert.equal(called, 0);
   assert.match(
     (await call(h, { url: "/api/app?route=bookings" })).value.error,

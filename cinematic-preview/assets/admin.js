@@ -11,8 +11,8 @@ const titles = {
     "Review requests, manage visits, and add bookings received elsewhere.",
   ],
   calendar: [
-    "Make room for beautiful care.",
-    "See scheduled visits and manage time away.",
+    "Proverbs 31 Cal",
+    "Your scheduling hub. Manage every visit and protect your time.",
   ],
   walkthroughs: [
     "A closer look, before the visit.",
@@ -216,6 +216,9 @@ function renderOverview() {
     );
 }
 function renderCalendar() {
+  $("#cal-export").replaceChildren(P31Cal.controls(data.bookings));
+  $("#block-through").value = selectedDate;
+  $("#block-through").min = selectedDate;
   $("#month-label").textContent = month.toLocaleDateString("en-US", {
     month: "long",
     year: "numeric",
@@ -235,19 +238,24 @@ function renderCalendar() {
       ),
       blocked =
         !data.availability.days.includes(d.getDay()) ||
-        data.availability.blocked.some((x) => x.date === key && !x.block);
+        data.availability.blocked.some(
+          (x) => x.date === key && !x.block && !x.startTime,
+        );
+    const partial =
+      !blocked && data.availability.blocked.some((x) => x.date === key);
     const b = button(
       String(n),
       () => {
         selectedDate = key;
         renderCalendar();
       },
-      (blocked ? "blocked " : "") + (visits.length ? "has-visits" : ""),
+      (blocked ? "blocked " : partial ? "partial-block " : "") +
+        (visits.length ? "has-visits" : ""),
     );
     b.setAttribute(
       "aria-label",
       formatDate(key) +
-        (blocked ? " · blocked" : "") +
+        (blocked ? " · blocked" : partial ? " · time blocked" : "") +
         " · " +
         visits.length +
         " visit(s)",
@@ -257,6 +265,7 @@ function renderCalendar() {
       b.append(
         el("span", visits.length + " visit" + (visits.length === 1 ? "" : "s")),
       );
+    if (partial) b.append(el("span", "Time blocked"));
     grid.append(b);
   }
   $("#selected-date-label").textContent = formatDate(selectedDate);
@@ -293,7 +302,14 @@ function renderCalendar() {
     .forEach((b) => {
       const div = el("div", undefined, "blocked-item");
       div.append(
-        el("p", (b.block || "Entire day") + " · " + b.reason),
+        el(
+          "p",
+          (b.startTime
+            ? b.startTime + "–" + b.endTime
+            : b.block || "Entire day") +
+            " · " +
+            b.reason,
+        ),
         button(
           "Remove block",
           () =>
@@ -496,6 +512,7 @@ function openBooking(id, kind) {
     el("p", formatDate(b.date) + " · " + b.arrival),
     el("p", "Rhythm: " + (b.rhythm || "One-time cleaning")),
   );
+  contact.append(P31Cal.controls([b], undefined, true));
   left.append(contact);
   const visit = section("Manage the booking"),
     form = el("form"),
@@ -1018,38 +1035,69 @@ $("#month-next").onclick = () => {
   month = new Date(month.getFullYear(), month.getMonth() + 1, 1);
   renderCalendar();
 };
+$("#block-window").onchange = () => {
+  $("#block-hours").hidden = $("#block-window").value !== "custom";
+};
+$("#block-week").onclick = () => {
+  const d = new Date(selectedDate + "T12:00:00");
+  d.setDate(d.getDate() + 6);
+  $("#block-through").value = A.dateKey(d);
+};
 $("#block-form").onsubmit = (e) => {
   e.preventDefault();
-  const block = $("#block-window").value,
-    reason = $("#block-reason").value.trim();
+  const selected = $("#block-window").value,
+    custom = selected === "custom",
+    block = custom ? "" : selected,
+    reason = $("#block-reason").value.trim(),
+    startTime = custom ? $("#block-start").value : null,
+    endTime = custom ? $("#block-end").value : null,
+    through = $("#block-through").value;
   write(() => {
+    if (
+      !reason ||
+      !through ||
+      through < selectedDate ||
+      (custom && (!startTime || !endTime || startTime >= endTime))
+    )
+      throw new Error("Choose valid dates, hours, and a reason.");
+    const days = [];
+    for (
+      let d = new Date(selectedDate + "T12:00:00");
+      A.dateKey(d) <= through;
+      d.setDate(d.getDate() + 1)
+    ) {
+      days.push(A.dateKey(d));
+      if (days.length > 366) throw new Error("Block up to one year at a time.");
+    }
     const d = A.read();
+    const overlaps = (arrival) =>
+      !custom
+        ? !block || block === arrival
+        : startTime < (arrival === A.blocks[0] ? "12:00" : "15:00") &&
+          endTime > (arrival === A.blocks[0] ? "09:00" : "12:00");
     if (
       d.bookings.some(
         (b) =>
-          b.date === selectedDate &&
-          (!block || b.arrival === block) &&
+          days.includes(b.date) &&
+          overlaps(b.arrival) &&
           !["Cancelled", "Completed"].includes(b.status),
       )
     )
       throw new Error(
-        "A booking already occupies this time. Move or cancel it before blocking the time.",
+        "A visit overlaps this range. Move or cancel it before blocking time. Nothing was changed.",
       );
-    if (
-      d.availability.blocked.some(
-        (x) =>
-          x.date === selectedDate && (!x.block || !block || x.block === block),
-      )
-    )
-      throw new Error("This time is already blocked.");
-    d.availability.blocked.push({
-      id: Date.now().toString(),
-      date: selectedDate,
-      block,
-      reason,
-    });
+    days.forEach((date) =>
+      d.availability.blocked.push({
+        id: crypto.randomUUID(),
+        date,
+        block,
+        reason,
+        startTime,
+        endTime,
+      }),
+    );
     A.save(d);
-  }, "Time blocked in the owner demo.");
+  }, "Time blocked in Proverbs 31 Cal (demo).");
 };
 $("#availability-form").onsubmit = (e) => {
   e.preventDefault();

@@ -31,7 +31,7 @@
         <nav aria-label="Owner sections" id="admin-nav">
           <button data-view="overview" aria-current="page">Overview</button
           ><button data-view="bookings">Bookings</button
-          ><button data-view="calendar">Calendar</button
+          ><button data-view="calendar">Proverbs 31 Cal</button
           ><button data-view="walkthroughs">Walkthroughs</button
           ><button data-view="payments">Payments</button
           ><button data-view="settings">Availability & settings</button>
@@ -100,6 +100,12 @@
           <div id="booking-list" class="booking-list"></div>
         </section>
         <section id="calendar" class="view" hidden>
+          <article class="info-strip">
+            Proverbs 31 Cal is your scheduling hub. Website, customer portal,
+            and manual bookings share this schedule. Calendar exports are
+            copies, not two-way sync.
+            <div id="cal-export"></div>
+          </article>
           <div class="two-columns calendar-layout">
             <article class="card">
               <div class="calendar-heading">
@@ -138,8 +144,25 @@
               <h3>Block time</h3>
               <form id="block-form">
                 <label
-                  >Arrival block<select id="block-window">
+                  >Through date<input type="date" id="block-through" required
+                /></label>
+                <button type="button" class="text-btn" id="block-week">
+                  Select seven days
+                </button>
+                <div id="block-hours" hidden>
+                  <label
+                    >From<input
+                      type="time"
+                      id="block-start"
+                      value="09:00" /></label
+                  ><label
+                    >Until<input type="time" id="block-end" value="12:00"
+                  /></label>
+                </div>
+                <label
+                  >Time to block<select id="block-window">
                     <option value="">Entire day</option>
+                    <option value="custom">Custom hours</option>
                   </select></label
                 ><label
                   >Reason<input
@@ -344,7 +367,9 @@
     </footer>
     <script src="assets/service-catalog.js"></script>
     <script src="assets/care-summary.js"></script>
+    <script src="assets/proverbs-cal.js"></script>
     <script src="assets/admin-store.js"></script>
     <script src="assets/admin.js"></script>
-  <script src="assets/backend-mode.js"></script></body>
+    <script src="assets/backend-mode.js"></script>
+  </body>
 </html>

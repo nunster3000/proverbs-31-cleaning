@@ -851,3 +851,7 @@ input[type="file"] {
 }
 
 .backend-cover{position:fixed;inset:0;z-index:10000;background:#f8f4eb;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:30px;text-align:center;font:18px/1.7 Georgia,serif;color:#806642}
+
+.cal-tools { display:flex; flex-wrap:wrap; gap:10px; margin:16px 0; } .cal-tools button { white-space:normal; } #block-hours:not([hidden]) { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+
+.calendar-grid .partial-block { border-bottom:3px solid #b58d44; background:#faf5e9; }
