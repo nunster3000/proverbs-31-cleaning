@@ -1,6 +1,19 @@
 # Connect the Supabase backend
 
-The backend code is implemented, but there is **no hosted Supabase project connected yet**. The portfolio deployment stays in demo mode. The business deployment uses `SITE_MODE=launch`: public booking/account routes remain unavailable until the backend is configured, rather than accepting simulated bookings. No demo customers, local photos, or simulated payments are migrated into the real database.
+The backend code is implemented. The dedicated hosted Supabase project has been initialized; the Vercel credentials and production email sender are still pending, so the website is **not connected yet**. The portfolio deployment stays in demo mode. The business deployment uses `SITE_MODE=launch`: public booking/account routes remain unavailable until the backend is configured, rather than accepting simulated bookings. No demo customers, local photos, or simulated payments are migrated into the real database.
+
+## Current hosted setup — October 19, 2026
+
+- Organization: `Proverb 31 Cleaning Services` (currently owned by the developer's Supabase account).
+- Project: `Proverbs 31 Cleaning Services`, reference `mokhzraxcbrmzpvedhxz`, US West (Oregon).
+- Applied `001_backend.sql` successfully through SQL Editor after explicit approval.
+- Verified 15 public tables, all 15 with row-level security enabled, private `walkthroughs` bucket, and zero customer records.
+- Auth email provider and email confirmation enabled; anonymous sign-in disabled.
+- Saved canonical Site URL and exact `/sign-in.html` redirect for the business domain.
+- No website admin has been assigned yet; the intended administrator must first verify their email.
+- Custom SMTP is not configured. The current dashboard requires custom SMTP before email subjects/templates can be edited; the magic-link/code template is still pending.
+- Vercel backend credentials have not been installed; backend activation and hosted workflow tests remain pending. Keep `BACKEND_ENABLED` disabled until these are complete.
+- Do not run the initial migration again: this project now contains the schema. Apply future changes as new migrations.
 
 ## 1. Create a business-owned project
 
