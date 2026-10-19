@@ -40,6 +40,12 @@ window.P31Cal = (() => {
   function event(b, zone) {
     const date = b.visit_date || b.date;
     const times =
+      (/^\d{2}:\d{2}-\d{2}:\d{2}$/.test(b.arrival)
+        ? b.arrival.split("-")
+        : null) ||
+      (window.P31Windows
+        ? window.P31Windows.times(b.arrival).map(window.P31Windows.clock)
+        : null) ||
       windows[b.arrival] ||
       (String(b.arrival).startsWith("9:")
         ? windows.morning

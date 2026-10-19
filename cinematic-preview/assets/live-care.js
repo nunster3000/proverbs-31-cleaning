@@ -208,12 +208,14 @@ window.P31LiveCareReady = (async () => {
         "Online payments are not connected. No deposit has been collected.";
     }
   };
-  availableBlocks = function (d) {
-    const v = availability.get(dateKey(d));
-    return v
-      ? blocksList.filter((_, i) => (i === 0 ? v.morning : v.afternoon))
-      : [];
-  };
+  offeredBlocks = (d) =>
+    (availability.get(dateKey(d))?.slots || []).map((s) =>
+      P31Windows.label(s.id),
+    );
+  availableBlocks = (d) =>
+    (availability.get(dateKey(d))?.slots || [])
+      .filter((s) => s.available)
+      .map((s) => P31Windows.label(s.id));
   const originalDraw = drawCalendar;
   drawCalendar = function () {
     originalDraw();
@@ -313,10 +315,11 @@ window.P31LiveCareReady = (async () => {
           pet_notes: customerValue("pets"),
           care_notes: document.querySelector("#notes").value,
           date: date.value,
-          arrival:
-            document.querySelector("#window").value === blocksList[0]
-              ? "morning"
-              : "afternoon",
+          arrival: (availability.get(date.value)?.slots || []).find(
+            (s) =>
+              P31Windows.label(s.id) ===
+              document.querySelector("#window").value,
+          )?.id,
           apartment_mode: document.querySelector("#booking-apartment-service")
             .value,
           recurrence: repeating

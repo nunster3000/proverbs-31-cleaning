@@ -65,6 +65,10 @@ test("demo custom hour blocks close only overlapping arrival windows", () => {
   );
   context.P31 = context.window.P31;
   vm.runInContext(
+    fs.readFileSync("cinematic-preview/assets/schedule-windows.js", "utf8"),
+    context,
+  );
+  vm.runInContext(
     fs.readFileSync("cinematic-preview/assets/admin-store.js", "utf8"),
     context,
   );
@@ -76,4 +80,38 @@ test("demo custom hour blocks close only overlapping arrival windows", () => {
   ];
   assert.equal(A.available(d, "2030-01-07", A.blocks[0]), false);
   assert.equal(A.available(d, "2030-01-07", A.blocks[1]), true);
+});
+
+test("window generator offers full 2/3-hour increments and recognizes overlapping legacy bookings", () => {
+  const w = { window: {} };
+  vm.createContext(w);
+  vm.runInContext(
+    fs.readFileSync("cinematic-preview/assets/schedule-windows.js", "utf8"),
+    w,
+  );
+  const W = w.window.P31Windows;
+  assert.deepEqual(Array.from(W.generate("09:00", "18:00", 2)), [
+    "09:00-11:00",
+    "11:00-13:00",
+    "13:00-15:00",
+    "15:00-17:00",
+  ]);
+  assert.deepEqual(Array.from(W.generate("09:00", "18:00", 3)), [
+    "09:00-12:00",
+    "12:00-15:00",
+    "15:00-18:00",
+  ]);
+  assert.equal(W.overlap("11:00-13:00", "9:00 AM – 12:00 PM"), true);
+  assert.equal(W.overlap("12:00-15:00", "9:00 AM – 12:00 PM"), false);
+  assert.equal(W.label("15:00-17:00"), "3:00 PM – 5:00 PM");
+  const text = cal.calendar([
+    {
+      id: "two-hour",
+      date: "2030-07-08",
+      arrival: "15:00-17:00",
+      status: "confirmed",
+    },
+  ]);
+  assert.match(text, /DTSTART:20300708T190000Z/);
+  assert.match(text, /DTEND:20300708T210000Z/);
 });

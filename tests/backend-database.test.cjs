@@ -474,3 +474,69 @@ after(async () => {
   await ready;
   await db.close();
 });
+
+test("date-specific 2/3-hour openings control customer availability and preserve occupied time after a pattern change", async () => {
+  await ready;
+  const d = new Date(day() + "T12:00:00Z");
+  d.setUTCDate(d.getUTCDate() + 180);
+  while (d.getUTCDay() === 0) d.setUTCDate(d.getUTCDate() + 1);
+  const date = d.toISOString().slice(0, 10);
+  await login("alice");
+  await assert.rejects(
+    () =>
+      rpc("api_owner_schedule", [
+        "day_windows",
+        JSON.stringify({ date, windows: ["09:00-11:00"] }),
+      ]),
+    /Owner/,
+  );
+  await login("owner");
+  const save = (windows) =>
+    rpc("api_owner_schedule", [
+      "day_windows",
+      JSON.stringify({ date, windows }),
+    ]);
+  await save(["09:00-11:00", "11:00-13:00", "15:00-17:00"]);
+  let slots = (await rpc("api_availability", [date, 1]))[0].slots;
+  assert.equal(slots.length, 3);
+  assert.ok(slots.every((s) => s.available));
+  await assert.rejects(
+    () => save(["09:00-12:00", "11:00-13:00"]),
+    /nonoverlapping/,
+  );
+  await assert.rejects(() => save(["09:00-10:00"]), /nonoverlapping/);
+  await login("alice");
+  const made = await rpc("api_create_booking", [
+    JSON.stringify({
+      name: "Alice",
+      address: "Example",
+      service: "standard",
+      space_id: 3,
+      date,
+      arrival: "11:00-13:00",
+    }),
+    "dddddddd-dddd-4ddd-8ddd-dddddddddddb",
+  ]);
+  assert.equal(made[0].arrival, "11:00-13:00");
+  assert.equal(
+    (await db.query("select * from public.calendar_days")).rows.length,
+    0,
+  );
+  await login("owner");
+  await save(["09:00-12:00", "12:00-15:00", "15:00-18:00"]);
+  slots = (await rpc("api_availability", [date, 1]))[0].slots;
+  assert.deepEqual(
+    slots.map((s) => s.available),
+    [false, false, true],
+  );
+  assert.equal(
+    (
+      await db.query("select arrival from public.bookings where id=$1", [
+        made[0].id,
+      ])
+    ).rows[0].arrival,
+    "11:00-13:00",
+  );
+  await save([]);
+  assert.deepEqual((await rpc("api_availability", [date, 1]))[0].slots, []);
+});

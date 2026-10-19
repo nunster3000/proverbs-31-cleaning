@@ -21,6 +21,10 @@ function setup() {
   );
   c.P31 = c.window.P31;
   vm.runInContext(
+    fs.readFileSync("cinematic-preview/assets/schedule-windows.js", "utf8"),
+    c,
+  );
+  vm.runInContext(
     fs.readFileSync("cinematic-preview/assets/admin-store.js", "utf8"),
     c,
   );

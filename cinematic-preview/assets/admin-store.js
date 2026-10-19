@@ -191,18 +191,22 @@ window.P31Admin = (() => {
     save(d);
     return record;
   }
+  function windows(d, date) {
+    return d.availability.dateWindows?.[date] ?? d.availability.blocks;
+  }
   function available(d, date, block, ignoreId) {
-    const day = new Date(date + "T12:00:00").getDay();
+    const W = window.P31Windows,
+      day = new Date(date + "T12:00:00").getDay();
     if (
-      !d.availability.days.includes(day) ||
-      !d.availability.blocks.includes(block) ||
+      (!Object.hasOwn(d.availability.dateWindows || {}, date) &&
+        !d.availability.days.includes(day)) ||
+      !windows(d, date).some((x) => W.id(x) === W.id(block)) ||
       d.availability.blocked.some(
         (x) =>
           x.date === date &&
           (x.startTime
-            ? x.startTime < (block === blocks[0] ? "12:00" : "15:00") &&
-              x.endTime > (block === blocks[0] ? "09:00" : "12:00")
-            : !x.block || x.block === block),
+            ? W.overlap(x.startTime + "-" + x.endTime, block)
+            : !x.block || W.overlap(x.block, block)),
       )
     )
       return false;
@@ -211,7 +215,7 @@ window.P31Admin = (() => {
         (b) =>
           b.id !== ignoreId &&
           b.date === date &&
-          b.arrival === block &&
+          W.overlap(b.arrival, block) &&
           !["Cancelled", "Completed"].includes(b.status),
       ).length < d.availability.capacity
     );
@@ -231,5 +235,6 @@ window.P31Admin = (() => {
     balance,
     importJourney,
     available,
+    windows,
   };
 })();

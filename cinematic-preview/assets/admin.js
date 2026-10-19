@@ -237,7 +237,9 @@ function renderCalendar() {
         (b) => b.date === key && b.status !== "Cancelled",
       ),
       blocked =
-        !data.availability.days.includes(d.getDay()) ||
+        (!Object.hasOwn(data.availability.dateWindows || {}, key) &&
+          !data.availability.days.includes(d.getDay())) ||
+        !A.windows(data, key).length ||
         data.availability.blocked.some(
           (x) => x.date === key && !x.block && !x.startTime,
         );
@@ -271,7 +273,40 @@ function renderCalendar() {
   $("#selected-date-label").textContent = formatDate(selectedDate);
   const slots = $("#calendar-slots");
   slots.replaceChildren();
-  A.blocks.forEach((block) => {
+  const dayWindows = A.windows(data, selectedDate);
+  const blockSelect = $("#block-window"),
+    previous = blockSelect.value;
+  blockSelect.replaceChildren();
+  for (const [value, text] of [
+    ["", "Entire day"],
+    ["custom", "Custom hours"],
+    ...dayWindows.map((x) => [x, x]),
+  ]) {
+    const o = el("option", text);
+    o.value = value;
+    blockSelect.append(o);
+  }
+  blockSelect.value = [...blockSelect.options].some((o) => o.value === previous)
+    ? previous
+    : "";
+  slots.append(
+    P31Windows.picker(dayWindows, async (ids) => {
+      const fresh = A.read();
+      fresh.availability.dateWindows ||= {};
+      fresh.availability.dateWindows[selectedDate] = ids.map(P31Windows.label);
+      A.save(fresh);
+      renderAll();
+      say("Open blocks saved for " + formatDate(selectedDate) + ".");
+    }),
+  );
+  [
+    ...new Set([
+      ...dayWindows,
+      ...data.bookings
+        .filter((b) => b.date === selectedDate && b.status !== "Cancelled")
+        .map((b) => b.arrival),
+    ]),
+  ].forEach((block) => {
     const box = el("div", undefined, "slot"),
       visits = data.bookings.filter(
         (b) =>
@@ -533,8 +568,16 @@ function openBooking(id, kind) {
   date.value = b.date;
   date.required = true;
   const block = el("select");
-  A.blocks.forEach((s) => block.append(el("option", s)));
+  [...new Set([...A.windows(data, b.date), b.arrival])].forEach((s) =>
+    block.append(el("option", s)),
+  );
   block.value = b.arrival;
+  date.onchange = () => {
+    block.replaceChildren();
+    A.windows(A.read(), date.value).forEach((value) =>
+      block.append(el("option", value)),
+    );
+  };
   form.append(
     labeled("Booking status", status),
     labeled("Visit date", date),
@@ -1023,8 +1066,14 @@ A.blocks.forEach((block) => {
   input.name = "workblock";
   input.value = block;
   $("#working-blocks").append(labeled(block, input));
-  $("#manual-arrival").append(el("option", block));
 });
+[
+  ...new Set(
+    [2, 3]
+      .flatMap((h) => P31Windows.generate("09:00", "18:00", h))
+      .map(P31Windows.label),
+  ),
+].forEach((block) => $("#manual-arrival").append(el("option", block)));
 $("#booking-search").oninput = renderAll;
 $("#booking-filter").onchange = renderAll;
 $("#month-prev").onclick = () => {
@@ -1073,8 +1122,7 @@ $("#block-form").onsubmit = (e) => {
     const overlaps = (arrival) =>
       !custom
         ? !block || block === arrival
-        : startTime < (arrival === A.blocks[0] ? "12:00" : "15:00") &&
-          endTime > (arrival === A.blocks[0] ? "09:00" : "12:00");
+        : P31Windows.overlap(startTime + "-" + endTime, arrival);
     if (
       d.bookings.some(
         (b) =>
@@ -1139,9 +1187,24 @@ function manualSpaces() {
 }
 $("#manual-service").onchange = manualSpaces;
 manualSpaces();
+function manualDateWindows() {
+  const date = $("#manual-form").elements.date.value,
+    options = $("#manual-arrival");
+  options.replaceChildren();
+  A.windows(A.read(), date)
+    .filter((b) => A.available(A.read(), date, b))
+    .forEach((b) => options.append(el("option", b)));
+  if (!options.options.length) {
+    const o = el("option", "No open blocks");
+    o.value = "";
+    options.append(o);
+  }
+}
+$("#manual-form").elements.date.onchange = manualDateWindows;
 $("#new-booking").onclick = () => {
   $("#manual-error").textContent = "";
   $("#manual-form").elements.date.value = selectedDate;
+  manualDateWindows();
   $("#manual-dialog").showModal();
 };
 $("#manual-form").onsubmit = (e) => {

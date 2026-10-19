@@ -271,6 +271,9 @@ function createHandler({
           settings: await read(
             db.from("business_settings").select("*").single(),
           ),
+          days: await read(
+            db.from("calendar_days").select("*").order("visit_date"),
+          ),
           blocks: await read(
             db.from("time_blocks").select("*").order("visit_date"),
           ),

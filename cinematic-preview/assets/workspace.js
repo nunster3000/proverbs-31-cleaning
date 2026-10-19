@@ -21,6 +21,7 @@
       apartment: "Apartment Cleaning",
       airbnb: "Airbnb Turnover",
     };
+  const arrivalName = (id) => names[id] || P31Windows.label(id);
   const money = (c) =>
     new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -71,6 +72,10 @@
     if (me.role === "owner") {
       state = await L.api("owner-state");
       customers = await L.api("customers", { query: { page } });
+      [
+        ...(state.settings?.windows || []),
+        ...(state.days || []).flatMap((d) => d.windows),
+      ].forEach((id) => (names[id] = P31Windows.label(id)));
     }
     render();
   }
@@ -118,7 +123,7 @@
           " · " +
           q.space,
       ),
-      n("p", b.visit_date + " · " + names[b.arrival]),
+      n("p", b.visit_date + " · " + arrivalName(b.arrival)),
       n("p", "Status: " + b.status.replaceAll("_", " "), "badge"),
     );
     const dl = n("dl", undefined, "care-summary-prices");
@@ -300,8 +305,12 @@
           const day = key + "-" + String(i).padStart(2, "0"),
             count = monthBookings.filter((b) => b.visit_date === day).length;
           const off =
-            !(state.settings?.working_days || []).includes(
-              new Date(day + "T12:00:00").getDay(),
+            (!(state.days || []).some((d) => d.visit_date === day) &&
+              !(state.settings?.working_days || []).includes(
+                new Date(day + "T12:00:00").getDay(),
+              )) ||
+            (state.days || []).some(
+              (d) => d.visit_date === day && !d.windows.length,
             ) ||
             (state.blocks || []).some(
               (b) => b.visit_date === day && !b.arrival && !b.start_time,
@@ -340,13 +349,29 @@
           });
           slots.replaceChildren(
             n("p", date.value),
-            ...Object.entries(names).map(([id, name]) =>
+            ...(rows[0]?.slots || []).map((slot) =>
               n(
                 "p",
-                name +
+                arrivalName(slot.id) +
                   " · " +
-                  (rows[0]?.[id] ? "Available" : "Unavailable / full"),
+                  (slot.available ? "Available" : "Unavailable / full"),
               ),
+            ),
+            P31Windows.picker(
+              (state.days || []).find((d) => d.visit_date === date.value)
+                ?.windows ?? state.settings.windows,
+              (ids) =>
+                act(
+                  () =>
+                    L.api("schedule", {
+                      method: "POST",
+                      data: {
+                        action: "day_windows",
+                        data: { date: date.value, windows: ids },
+                      },
+                    }),
+                  "Open blocks saved.",
+                ),
             ),
           );
         } catch (e) {
@@ -369,7 +394,7 @@
             btn(
               (b.customers?.name || "Cleaning") +
                 " · " +
-                names[b.arrival] +
+                arrivalName(b.arrival) +
                 " · " +
                 b.status,
               () => detail(b),
@@ -455,7 +480,9 @@
             " · " +
             (b.start_time
               ? b.start_time.slice(0, 5) + "–" + b.end_time.slice(0, 5)
-              : names[b.arrival] || "Entire day") +
+              : b.arrival
+                ? arrivalName(b.arrival)
+                : "Entire day") +
             " · " +
             b.reason,
         );
@@ -1051,6 +1078,29 @@
       ),
       date = input("date"),
       arrival = choice(Object.entries(names), "morning");
+    date.onchange = async () => {
+      try {
+        const rows = await L.api("availability", {
+          query: { start: date.value, days: 1 },
+        });
+        arrival.replaceChildren();
+        (rows[0]?.slots || [])
+          .filter((s) => s.available)
+          .forEach((s) => {
+            const o = n("option", arrivalName(s.id));
+            o.value = s.id;
+            arrival.append(o);
+          });
+        if (!arrival.options.length) {
+          const o = n("option", "No open blocks");
+          o.value = "";
+          arrival.append(o);
+        }
+      } catch (e) {
+        msg(e.message);
+      }
+    };
+    arrival.required = true;
     [name, email, address, date].forEach((i) => (i.required = true));
     service.onchange = () => {
       space.replaceChildren();
@@ -1164,8 +1214,8 @@
         { status: 401 },
       );
     if (me.role === "owner") {
-      const adminLink=n("a","Admin dashboard");
-      adminLink.href="workspace.html";
+      const adminLink = n("a", "Admin dashboard");
+      adminLink.href = "workspace.html";
       document.querySelector("header nav").prepend(adminLink);
     }
     $("#sign-out").hidden = false;
