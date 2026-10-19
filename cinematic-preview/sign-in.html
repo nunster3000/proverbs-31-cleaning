@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Sign In · Proverbs 31</title>
     <link rel="stylesheet" href="assets/admin.css" />
+    <link rel="stylesheet" href="assets/sign-in.css" />
+    <meta name="robots" content="noindex,nofollow" />
   </head>
   <body>
     <header>
@@ -14,60 +16,26 @@
         ></a
       ><a href="index.html">Home</a>
     </header>
-    <main class="card" style="max-width: 520px; margin: 50px auto">
+    <main class="card sign-in-card">
       <div class="eyebrow">YOUR HOME FOR THOUGHTFUL CARE</div>
       <h1>Welcome home.</h1>
       <p>
-        Sign in or create an account with your email. Owner access is assigned
-        separately by the business.
+        Sign in or create your account with a secure email link. Customers and the business owner use the same sign-in.
       </p>
       <form id="email-form">
         <label
           >Email address<input
-            id="sign-in-email"
+            id="sign-in-email" disabled
             type="email"
             autocomplete="email"
             required /></label
-        ><button class="primary">Continue with email</button>
+        ><button class="primary" disabled>Continue with email</button>
       </form>
       <p id="sign-in-status" role="status"></p>
-      <a class="text-btn" href="care.html">Back to booking</a>
+      <p class="sign-in-help">No password needed. Your account opens the workspace available to you.</p>
+      <div class="sign-in-links"><a href="care.html">Plan my cleaning</a><a href="contact.html">Need help?</a></div>
     </main>
     <script src="assets/backend-client.js"></script>
-    <script>
-      (async () => {
-        const status = document.querySelector("#sign-in-status");
-        const configMessage = (c) =>
-          c.siteMode === "launch"
-            ? "Account access is being prepared. Please contact the company to arrange your cleaning."
-            : "Connected sign-in is not configured yet. The existing site remains a fictional demo.";
-        try {
-          const c = await P31Live.init();
-          if (!c.enabled) {
-            status.textContent = configMessage(c);
-            document.querySelector("#email-form button").disabled = true;
-            return;
-          }
-          const {
-            data: { session },
-          } = await P31Live.client.auth.getSession();
-          if (session && !session.user.is_anonymous) {
-            location.replace("workspace.html");
-            return;
-          }
-          document.querySelector("#email-form").onsubmit = async (e) => {
-            e.preventDefault();
-            if (
-              await P31Live.signIn(
-                document.querySelector("#sign-in-email").value.trim(),
-              )
-            )
-              location.replace("workspace.html");
-          };
-        } catch (e) {
-          status.textContent = e.message;
-        }
-      })();
-    </script>
+    <script src="assets/sign-in.js"></script>
   </body>
 </html>

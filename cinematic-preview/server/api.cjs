@@ -59,8 +59,7 @@ function createHandler({
           throw new HttpError(405, "Method not allowed");
         return reply(200, {
           enabled: configured,
-          siteMode:
-            configured || env.SITE_MODE === "launch" ? "launch" : "demo",
+          siteMode: "launch",
           url: configured ? env.SUPABASE_URL : null,
           key: configured ? env.SUPABASE_ANON_KEY : null,
           turnstileSiteKey: configured ? env.TURNSTILE_SITE_KEY || null : null,

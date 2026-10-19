@@ -1194,25 +1194,21 @@
   try {
     const config = await L.init();
     if (!config.enabled) {
-      $("#workspace-title").textContent =
-        "The connected workspace is not configured yet.";
-      $("#workspace-content").append(
-        n(
-          "p",
-          config.siteMode === "launch"
-            ? "Account access is being prepared. Please contact the company to arrange your cleaning."
-            : "Supabase setup is required before real customer records can be stored. The public site remains a fictional demo.",
-        ),
-        Object.assign(
-          n(
-            "a",
-            config.siteMode === "launch" ? "Return home" : "Return to demo",
-          ),
-          { href: "index.html" },
-        ),
-      );
+      location.replace("sign-in.html");
       return;
     }
+    const { data: { session } } = await L.client.auth.getSession();
+    if (!session || session.user.is_anonymous) {
+      location.replace("sign-in.html");
+      return;
+    }
+    L.client.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT") {
+        document.querySelector("#workspace-content").replaceChildren();
+        document.querySelector("#workspace-detail").replaceChildren();
+        location.replace("sign-in.html");
+      }
+    });
     me = await L.api("me");
     if (me.role === "guest")
       throw Object.assign(
@@ -1256,7 +1252,7 @@
     );
     $("#sign-out").onclick = async () => {
       await L.client.auth.signOut();
-      location.replace("index.html");
+      location.replace("sign-in.html");
     };
     await reload();
   } catch (e) {

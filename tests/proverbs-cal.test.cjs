@@ -69,7 +69,7 @@ test("demo custom hour blocks close only overlapping arrival windows", () => {
     context,
   );
   vm.runInContext(
-    fs.readFileSync("cinematic-preview/assets/admin-store.js", "utf8"),
+    fs.readFileSync("tests/fixtures/legacy-admin-store.js", "utf8"),
     context,
   );
   const A = context.window.P31Admin,

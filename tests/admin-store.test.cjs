@@ -25,7 +25,7 @@ function setup() {
     c,
   );
   vm.runInContext(
-    fs.readFileSync("cinematic-preview/assets/admin-store.js", "utf8"),
+    fs.readFileSync("tests/fixtures/legacy-admin-store.js", "utf8"),
     c,
   );
   return { A: c.window.P31Admin, session };

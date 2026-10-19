@@ -51,7 +51,7 @@ test("disabled backend exposes neither keys nor live services", async () => {
   const h = createHandler({ env: { ...env, BACKEND_ENABLED: "false" } });
   assert.deepEqual((await call(h)).value, {
     enabled: false,
-    siteMode: "demo",
+    siteMode: "launch",
     url: null,
     key: null,
     turnstileSiteKey: null,

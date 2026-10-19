@@ -85,6 +85,7 @@ window.P31Live = (() => {
   }
   async function signIn(email) {
     await init();
+    if (!client) throw new Error("Email sign-in is not available yet.");
     return new Promise((resolve) => {
       const dialog = document.createElement("dialog");
       dialog.className = "live-auth";
@@ -94,7 +95,7 @@ window.P31Live = (() => {
       p.textContent =
         "We will send a sign-in link or code to " +
         email +
-        ". Your booking stays here while you verify.";
+        ". Keep this page open while you verify.";
       const security = document.createElement("div"),
         status = document.createElement("p");
       status.setAttribute("role", "status");
@@ -118,7 +119,7 @@ window.P31Live = (() => {
       form.hidden = true;
       const close = document.createElement("button");
       close.className = "outline";
-      close.textContent = "Back to booking";
+      close.textContent = "Back";
       close.onclick = () => dialog.close();
       dialog.append(h, p, security, send, form, status, close);
       document.body.append(dialog);

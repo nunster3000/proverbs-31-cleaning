@@ -1,6 +1,6 @@
 # Connect the Supabase backend
 
-The backend code is implemented. The dedicated hosted Supabase project has been initialized; the Vercel credentials and production email sender are still pending, so the website is **not connected yet**. The portfolio deployment stays in demo mode. The business deployment uses `SITE_MODE=launch`: public booking/account routes remain unavailable until the backend is configured, rather than accepting simulated bookings. No demo customers, local photos, or simulated payments are migrated into the real database.
+The backend code is implemented. The dedicated hosted Supabase project has been initialized; the Vercel credentials and production email sender are still pending, so the website is **not connected yet**. All deployments now use the production-only app; the previous demonstration screens are retired. The business deployment uses `SITE_MODE=launch`: public booking/account routes remain unavailable until the backend is configured, rather than accepting simulated bookings. No demo customers, local photos, or simulated payments are migrated into the real database.
 
 ## Current hosted setup — October 19, 2026
 
@@ -49,7 +49,7 @@ In this project's Vercel settings, add these **server environment variables** fo
 
 | Variable | Value |
 |---|---|
-| `SITE_MODE` | `launch` on the business production deployment; `demo` on the portfolio project |
+| `SITE_MODE` | `launch` (production-only on all deployments) |
 | `BACKEND_ENABLED` | `true` only when the migration and authentication setup are ready |
 | `SUPABASE_URL` | The project's HTTPS API URL |
 | `SUPABASE_ANON_KEY` | Its public anon/publishable key |
@@ -122,3 +122,9 @@ Guests receive an anonymous session for submitting a request; they do not get a 
 - [Passwordless email authentication](https://supabase.com/docs/guides/auth/auth-email-passwordless)
 - [Anonymous sign-ins](https://supabase.com/docs/guides/auth/auth-anonymous)
 - [Vercel project configuration](https://vercel.com/docs/project-configuration/vercel-json)
+
+## Shared account portal
+
+`sign-in.html` is the single passwordless entry point for customers and administrators. Legacy `account.html`, `admin.html`, and `final-payment.html` routes forward to the backend workspace, which sends signed-out visitors to the shared portal. `/api/app?route=me` determines the role using the verified session and private owner table. URL parameters and browser storage cannot grant owner access.
+
+Production builds exclude the retired demo store, dashboards, browser media store, and demo bridges. The planner no longer auto-types fictional contact details or simulates account verification or payment. Missing backend configuration fails closed on every deployment. Public catalog copy and illustrative floor plans remain; transactional prices and calendar availability come from the backend.

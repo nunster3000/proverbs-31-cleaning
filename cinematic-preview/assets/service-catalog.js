@@ -1,4 +1,4 @@
-/* Owner-provided service rules. Demo estimates only; a server must validate live quotes. */
+/* Published service catalog. The backend validates all booking quotes and payments. */
 window.P31 = (() => {
   const services = ['Standard Cleaning', 'Deep Cleaning', 'Apartment Cleaning', 'Airbnb Turnover'];
   const spaces = [

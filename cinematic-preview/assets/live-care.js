@@ -102,28 +102,6 @@ window.P31LiveCareReady = (async () => {
         )),
     );
   }
-  // Disable all fictional identity and payment automation in connected mode.
-  startDemoTyping = () => {
-    demoTypingStarted = true;
-    typingActive = false;
-    document.querySelector("#next").disabled = false;
-    document.querySelector("#typing-status").textContent =
-      "Enter your contact and property details.";
-    document.querySelector("#skip-typing").hidden = true;
-  };
-  skipDemoTyping = startDemoTyping;
-  document
-    .querySelectorAll(
-      "#customer-form input:not([type=radio]),#customer-form textarea",
-    )
-    .forEach((n) => (n.value = ""));
-  document.querySelector(".demo-toolbar").replaceChildren();
-  const notice = document.createElement("p");
-  notice.className = "connected-notice";
-  notice.textContent =
-    "Request your cleaning · Final pricing follows walkthrough review";
-  document.querySelector(".demo-toolbar").hidden = false;
-  document.querySelector(".demo-toolbar").append(notice);
   const footer = document.querySelector("footer span:last-child");
   if (footer)
     footer.textContent =
@@ -195,8 +173,7 @@ window.P31LiveCareReady = (async () => {
     if (stage === 2) {
       document.querySelector("#next").textContent =
         "Continue to request review →";
-      document.querySelector("#typing-status").textContent =
-        "Enter your real contact details only when you are ready to request a service.";
+
     }
     if (stage === 3) {
       document.querySelector("#payment h2").textContent =
@@ -363,9 +340,14 @@ window.P31LiveCareReady = (async () => {
           p.textContent +=
             " Keep this reference when contacting the company. Guest account management is not enabled.";
         }
-        dialog.append(h, p, id, link);
+        const stars = document.createElement("div");
+        stars.id = "celebration";
+        stars.setAttribute("aria-hidden", "true");
+        dialog.style.position = "relative";
+        dialog.append(stars, h, p, id, link);
         document.body.append(dialog);
         dialog.showModal();
+        celebrate();
         next.hidden = true;
       }
     } catch (e) {
@@ -379,4 +361,5 @@ window.P31LiveCareReady = (async () => {
       next.disabled = false;
     }
   };
+  document.querySelector("#next").disabled = false;
 })();
