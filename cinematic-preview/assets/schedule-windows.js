@@ -166,9 +166,10 @@ window.P31Windows = (() => {
           fields["Block length"].value,
         );
         b.disabled = true;
-        await save(
+        const saved = await save(
           [...list.querySelectorAll("input:checked")].map((i) => i.value),
         );
+        if (saved === false) throw new Error("Open blocks were not saved. Please review the error and try again.");
         status.textContent = "Open blocks saved.";
       } catch (e) {
         status.textContent = e.message;
