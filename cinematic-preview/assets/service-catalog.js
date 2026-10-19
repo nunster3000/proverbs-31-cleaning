@@ -18,10 +18,10 @@ window.P31 = (() => {
     { id: 'baseboards', label: 'Baseboard cleaning', price: 45, detail: 'Additional attention to baseboards' }
   ];
   const descriptions = {
-    'Standard Cleaning': 'Everyday care: vacuuming, sweeping, mopping, making beds, wiping surfaces, and routine kitchen and bathroom cleaning.',
-    'Deep Cleaning': 'Standard care plus baseboards, window cleaning, sanitizing, and disinfecting. Starts $100 above the standard size-based price. Select Kitchen as a focus room to include refrigerator and stove/oven cleaning.',
-    'Apartment Cleaning': 'Standard cleaning for an empty apartment. Choose Move-In before belongings arrive or Move-Out after everything has been removed.',
-    'Airbnb Turnover': 'Standard cleaning between guest stays. Choose a King or Queen guest suite with its bathroom, then add any extra care such as laundry.'
+    'Standard Cleaning': 'Routine cleaning to keep your home fresh, comfortable, and well cared for. Includes vacuuming, sweeping, mopping, surface cleaning, bed making, and everyday kitchen and bathroom care.',
+    'Deep Cleaning': 'A more detailed clean for spaces that need additional attention. Includes standard cleaning, with focused care for baseboards and windows, along with sanitizing and disinfecting to address buildup and refresh your space.',
+    'Apartment Cleaning': 'A fresh start for your next chapter. Our move-in and move-out services provide standard cleaning throughout an empty apartment, preparing the space before your belongings arrive or after they have been removed.',
+    'Airbnb Turnover': 'Thoughtful cleaning between guest stays to keep your space welcoming and ready for the next arrival. Includes standard cleaning of your selected guest bedroom and bathroom, with optional laundry service to wash, fold, and hang items as needed.'
   };
   function quote({ service = services[0], space = 3, focus = [], extras = {} } = {}) {
     const item = spaces[space];

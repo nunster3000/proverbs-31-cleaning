@@ -21,7 +21,7 @@ function update() {
   document.querySelector('#service-title').textContent = type;
   document.querySelector('#service-description').textContent = P31.descriptions[type];
   document.querySelector('#apartment-mode').hidden = type !== 'Apartment Cleaning';
-  document.querySelector('#type-note').textContent = type === 'Deep Cleaning' ? '*Prices include the $100 deep-cleaning upgrade. Final pricing follows review of your space.' : '*Starting prices by space. Final pricing follows review of your space.';
+  document.querySelector('#type-note').textContent = '*Starting prices vary by space. Final pricing is confirmed after reviewing your home and requested services.';
   document.querySelectorAll('.service').forEach(card => {
     const link = card.querySelector('[data-scope]'), id = Number(link.dataset.scope), item = P31.spaces[id];
     card.hidden = (type === 'Airbnb Turnover') !== !!item.suite;
