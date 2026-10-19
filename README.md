@@ -4,7 +4,7 @@ Cinematic, responsive customer booking demonstration for Proverbs 31 Cleaning Co
 
 The static website lives in `cinematic-preview/`. It includes the homepage, Services, interactive home selection, sample calendar, guided account setup, payment previews, confirmation, and customer dashboard.
 
-All accounts, availability, emails, and payments are simulated. No admin dashboard is included. Demo details carry between screens using browser session storage.
+All accounts, availability, emails, and payments are simulated. The owner dashboard is a local-only prototype. Demo details carry between screens using browser session storage.
 
 ## Run locally
 
@@ -26,7 +26,7 @@ Generated assets and their prompts are retained with the source. Screenshot proo
 
 The public `nunster3000/proverbs-31-cleaning` GitHub repository is connected to the Vercel project. Pushes to `main` deploy production; other branches use Vercel previews. The configured repository root is `cinematic-preview/`.
 
-The admin dashboard, live authentication, real availability, outbound email, and payment processing remain deferred.
+Live authentication, server-backed availability, outbound email, and payment processing remain deferred.
 
 ## Service rules updated after owner clarification
 
@@ -36,8 +36,21 @@ Optional add-ons: laundry $20/load (folding and hanging), refrigerator $75, stov
 
 Customer portal Virtual Walkthrough accepts sample photos/videos, room labels and notes. Local previews can be saved to this device's IndexedDB, restored, removed, or cleared. Nothing is uploaded. Limits are prototype choices (6 files, 20 MB each, 80 MB total), not approved production policies. Restarting booking clears session details, not saved walkthrough media. The demo privacy page explains deletion.
 
-Before production: implement authenticated private uploads, server-side file validation, retention/deletion rules, owner review, final-quote approval and actual invoicing. Keep payment processing, email, live authentication/availability, and the admin dashboard deferred until configured. The supplied logo is used outside the cinematic hero.
+Before production: implement authenticated private uploads, server-side file validation, retention/deletion rules, owner review, final-quote approval and actual invoicing. Keep payment processing, email, live authentication/availability, deferred until configured. The supplied logo is used outside the cinematic hero.
 
 Pricing verification: `node --test tests/service-pricing.test.cjs`.
 
 Booking Review and the customer portal share a service summary showing scope, included tasks, selected paid add-ons, starting service price, estimated total, and starting-price deposit. New demo bookings save their included-care snapshot with the existing session record. Portal overview, booking details, walkthrough, and payment breakdown keep final pricing pending virtual walkthrough review; no final balance is issued automatically.
+
+
+## Owner dashboard demo
+
+Open `cinematic-preview/admin.html` (or `/admin.html` on the hosted demo). Overview, bookings, calendar, walkthroughs, payments, and availability settings work against fictional records in local storage (`p31-owner-demo-v1`). Customer demo bookings are imported once per booking and connected to the owner workflow when the same browser tab navigates between the customer and owner pages. State changes sync between tabs on the same origin/device; no records are sent to a server.
+
+Supported workflow: add a manual booking; enforce owner working days, arrival-block capacity and blocks; reschedule/cancel; review locally saved walkthrough media or record an externally received walkthrough; add itemized price adjustments/credits; prepare a reviewed quote; accept the quote in the customer demo portal or record outside approval; mark the visit completed; issue a demo final balance; and record/simulate final payment. Account customers see their reviewed quote and balance; guest email previews offer a local demo payment page. Email previews never send messages. Media received outside the portal can be added to the same local IndexedDB walkthrough store.
+
+Issuing balances requires walkthrough review, customer quote approval, and completion. Starting estimates remain visible separately from reviewed totals. Adjustments invalidate earlier quote approval. Payments are manual records or simulations, not processor transactions. The owner calendar does not yet replace the sample calendar in the customer booking flow; a shared backend scheduling service remains required.
+
+This is a public, unauthenticated prototype for fictional data, not a production admin application. Before real use, implement owner/customer authentication, roles, server-side workflow and payment validation, private media storage, data retention, audit logging, actual email/invoice delivery, and calendar integration if selected. Reset owner demo in Settings restores sample owner records but does not delete saved walkthrough files or the customer session record. Clear walkthrough media through the customer portal or browser site data.
+
+Verification: `node --test tests/*.test.cjs`. Manual browser checks cover blocked-time conflicts, manual bookings, owner media, quote review/acceptance, account and guest final-payment simulations, and small-screen layouts.
