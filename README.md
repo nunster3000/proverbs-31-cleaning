@@ -18,7 +18,9 @@ Open http://localhost:8765/.
 
 Project: `proverbs-31-cleaning` under Khris’ projects. Framework: Other. Root directory: `cinematic-preview`. No build or install command is required. Output directory: `.`.
 
-Production: https://proverbs-31-cleaning.vercel.app
+Production: https://proverbs-31-cleaning-seven.vercel.app
+
+Business-owned Vercel team: `proverbs-31-cleaning-co` · Project: `proverbs-31-cleaning`. The original personal-team demo remains separate. Both local Vercel links now point to the business project; run CLI deployments from the repository root because the Vercel project root is `cinematic-preview/`.
 
 Generated assets and their prompts are retained with the source. Screenshot proof files and local Vercel metadata are excluded.
 
