@@ -1199,9 +1199,17 @@
       $("#workspace-content").append(
         n(
           "p",
-          "Supabase setup is required before real customer records can be stored. The public site remains a fictional demo.",
+          config.siteMode === "launch"
+            ? "Account access is being prepared. Please contact the company to arrange your cleaning."
+            : "Supabase setup is required before real customer records can be stored. The public site remains a fictional demo.",
         ),
-        Object.assign(n("a", "Return to demo"), { href: "index.html" }),
+        Object.assign(
+          n(
+            "a",
+            config.siteMode === "launch" ? "Return home" : "Return to demo",
+          ),
+          { href: "index.html" },
+        ),
       );
       return;
     }

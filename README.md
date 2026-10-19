@@ -94,3 +94,7 @@ Use **Google Calendar** for import guidance, or download `.ics` for Google/Apple
 The customer demo has **Back to Admin** links in its header and sidebar, so the owner can return after previewing the customer portal. Connected sign-in uses one email verification page for customers and the owner. Owner navigation is based on the backend role; a URL parameter or the demo return link does not grant access. The business owner email will be assigned during Supabase setup, not hardcoded in the app.
 
 In Proverbs 31 Cal, select a date and use **Open booking blocks**: choose a 2-hour or 3-hour length, adjust the day’s start/end, check the blocks to offer, and save. This overrides that date only, including the ability to open a normally closed weekday or close all blocks. Existing visits keep their original times; overlapping bookings and time blocks still close affected capacity. Customer booking uses the same windows. Supabase remains disconnected; the prepared backend stores date openings and enforces interval overlap when enabled.
+
+### Production launch preparation
+
+Set `SITE_MODE=launch` only in the business Vercel project. While `BACKEND_ENABLED=false`, business booking and account pages show a setup notice and company contact link, and never fall back to the simulation. Portfolio settings retain demo mode. Connect Supabase, verified email delivery, and owner access before enabling the business backend. Account management uses email links/codes; customers do not need passwords.

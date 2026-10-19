@@ -51,6 +51,7 @@ test("disabled backend exposes neither keys nor live services", async () => {
   const h = createHandler({ env: { ...env, BACKEND_ENABLED: "false" } });
   assert.deepEqual((await call(h)).value, {
     enabled: false,
+    siteMode: "demo",
     url: null,
     key: null,
     turnstileSiteKey: null,
@@ -234,4 +235,18 @@ test("only the backend can finalize a reserved upload, after validating its cont
   });
   assert.equal((await call(handler, request)).value.status, "ready");
   assert.equal(finished, 1);
+});
+
+test("launch preparation never advertises demo mode when Supabase is not connected", async () => {
+  const result = (
+    await call(
+      createHandler({
+        env: { ...env, BACKEND_ENABLED: "false", SITE_MODE: "launch" },
+      }),
+    )
+  ).value;
+  assert.equal(result.siteMode, "launch");
+  assert.equal(result.enabled, false);
+  assert.equal(result.key, null);
+  assert.equal(result.url, null);
 });

@@ -37,11 +37,14 @@
     <script>
       (async () => {
         const status = document.querySelector("#sign-in-status");
+        const configMessage = (c) =>
+          c.siteMode === "launch"
+            ? "Account access is being prepared. Please contact the company to arrange your cleaning."
+            : "Connected sign-in is not configured yet. The existing site remains a fictional demo.";
         try {
           const c = await P31Live.init();
           if (!c.enabled) {
-            status.textContent =
-              "Connected sign-in is not configured yet. The existing site remains a fictional demo.";
+            status.textContent = configMessage(c);
             document.querySelector("#email-form button").disabled = true;
             return;
           }

@@ -1,6 +1,6 @@
 # Connect the Supabase backend
 
-The backend code is implemented, but there is **no hosted Supabase project connected yet**. The existing live site stays in fictional demo mode until configuration is supplied. No demo customers, local photos, or simulated payments are migrated into the real database.
+The backend code is implemented, but there is **no hosted Supabase project connected yet**. The portfolio deployment stays in demo mode. The business deployment uses `SITE_MODE=launch`: public booking/account routes remain unavailable until the backend is configured, rather than accepting simulated bookings. No demo customers, local photos, or simulated payments are migrated into the real database.
 
 ## 1. Create a business-owned project
 
@@ -26,7 +26,7 @@ In Supabase Authentication:
 - Set the Site URL to `https://www.proverbs31cleaningcoservices.info` for the current deployment.
 - Allow `https://www.proverbs31cleaningcoservices.info/sign-in.html` as a redirect URL. Add your custom domain's equivalent when it is ready. For local testing only, allow `http://127.0.0.1:8766/sign-in.html`.
 - In the email magic-link template, include both the standard `{{ .ConfirmationURL }}` link and the `{{ .Token }}` code so the booking dialog can verify a code without losing the booking form.
-- Configure custom SMTP before real customer use. Supabase's built-in mail service has testing restrictions and rate limits; it is not the business notification delivery system.
+- Configure custom SMTP before real customer use. Supabase's built-in sender only delivers to project-team addresses and is for testing. Configure a verified sender for customer email links; business booking notifications require a separate delivery worker.
 
 Sign-in uses verified email links/codes with PKCE. No customer password is stored by this app. A user-provided role or browser setting never grants owner access.
 
@@ -36,6 +36,7 @@ In this project's Vercel settings, add these **server environment variables** fo
 
 | Variable | Value |
 |---|---|
+| `SITE_MODE` | `launch` on the business production deployment; `demo` on the portfolio project |
 | `BACKEND_ENABLED` | `true` only when the migration and authentication setup are ready |
 | `SUPABASE_URL` | The project's HTTPS API URL |
 | `SUPABASE_ANON_KEY` | Its public anon/publishable key |

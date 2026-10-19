@@ -9,7 +9,18 @@
   const cover = document.createElement("div");
   cover.className = "backend-cover";
   cover.textContent = "Opening your workspace…";
-  if (guarded) document.body.append(cover);
+  const covered = new Map();
+  if (guarded) {
+    [...document.body.children].forEach((n) => {
+      covered.set(n, n.inert);
+      n.inert = true;
+    });
+    document.body.append(cover);
+  }
+  function removeCover() {
+    covered.forEach((previous, n) => (n.inert = previous));
+    cover.remove();
+  }
   try {
     if (!window.P31Live) {
       const s = document.createElement("script");
@@ -21,8 +32,76 @@
       });
     }
     const config = await P31Live.init();
+    const live = config.enabled || config.siteMode === "launch";
+    if (live) {
+      document
+        .querySelectorAll(".demo,.demo-toolbar,.demo-banner,[data-demo-copy]")
+        .forEach((n) => (n.hidden = true));
+      document
+        .querySelectorAll('a[href="privacy.html"]')
+        .forEach((a) => (a.textContent = "Privacy"));
+      document
+        .querySelectorAll("title")
+        .forEach(
+          (n) =>
+            (n.textContent = n.textContent.replace(
+              "Cinematic Preview",
+              "Cleaning Company",
+            )),
+        );
+      document.querySelectorAll('a[href="account.html"]').forEach((a) => {
+        a.href = "workspace.html";
+      });
+      if (page === "about.html") {
+        const p = document.querySelectorAll("main .details p");
+        if (p[2])
+          p[2].textContent =
+            "Explore Standard Cleaning, Deep Cleaning, Apartment Move-In / Move-Out Cleaning, and Airbnb Turnover.";
+        if (p[3]) p[3].hidden = true;
+      }
+      if (page === "contact.html") {
+        const p = document.querySelector("main .fine");
+        if (p)
+          p.textContent =
+            "Contact Proverbs 31 Cleaning Co. to discuss your home and cleaning needs.";
+      }
+    }
     if (!config.enabled) {
-      cover.remove();
+      if (live && page === "privacy.html") {
+        const main = document.querySelector("main");
+        if (main) {
+          main.replaceChildren();
+          const h = document.createElement("h2"),
+            p = document.createElement("p"),
+            a = document.createElement("a");
+          h.textContent = "Online services are being prepared";
+          p.textContent =
+            "Online booking and account registration are not currently available. Please contact Proverbs 31 Cleaning Co. directly to arrange service. Privacy information for online accounts will be available before those services launch.";
+          a.href = "contact.html";
+          a.textContent = "Contact the company";
+          main.append(h, p, a);
+        }
+      }
+      if (live && guarded) {
+        cover.replaceChildren();
+        const h = document.createElement("h1"),
+          p = document.createElement("p");
+        h.textContent = "Online booking is being prepared.";
+        p.textContent =
+          "Please contact Proverbs 31 Cleaning Co. to arrange your cleaning while online booking and account access are being set up.";
+        const home = document.createElement("a"),
+          contact = document.createElement("a");
+        home.href = "index.html";
+        home.textContent = "Return home";
+        contact.href = "contact.html";
+        contact.textContent = "Contact the company";
+        cover.append(h, p, contact, home);
+        document.querySelectorAll("dialog[open]").forEach((d) => d.close());
+        cover.tabIndex = -1;
+        cover.focus();
+        return;
+      }
+      removeCover();
       return;
     }
     if (page === "admin.html" || page === "account.html") {
@@ -72,18 +151,18 @@
       .forEach((n) => {
         if (page !== "care.html") n.hidden = true;
       });
-    cover.remove();
+    removeCover();
   } catch (e) {
     if (guarded) {
       if (
         ["localhost", "127.0.0.1"].includes(location.hostname) &&
         e.message === "Unable to check the backend connection."
       ) {
-        cover.remove();
+        removeCover();
         return;
       }
       cover.textContent =
         "The workspace connection is unavailable. Please reload before entering any information.";
-    } else cover.remove();
+    } else removeCover();
   }
 })();

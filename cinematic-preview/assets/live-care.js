@@ -121,8 +121,13 @@ window.P31LiveCareReady = (async () => {
   const notice = document.createElement("p");
   notice.className = "connected-notice";
   notice.textContent =
-    "Connected booking requests · Prices confirmed after walkthrough review · Online payments are not connected";
+    "Request your cleaning · Final pricing follows walkthrough review";
+  document.querySelector(".demo-toolbar").hidden = false;
   document.querySelector(".demo-toolbar").append(notice);
+  const footer = document.querySelector("footer span:last-child");
+  if (footer)
+    footer.textContent =
+      "Booking requests are saved securely. No payment is collected on this website yet.";
   document
     .querySelectorAll(".account-options>.fine")
     .forEach(
