@@ -81,6 +81,12 @@ const previousFillReview = fillReview;
 fillReview = function () {
   previousFillReview();
   const q = bookingQuote();
+  const snapshot = {care: bookingCareLabel(), serviceKey: document.querySelector('input[name=care]:checked').value, scope: document.querySelector('#scope-summary').textContent, apartmentMode: document.querySelector('#booking-apartment-service').value, roomFocus: [...selected], startingBase: q.base, price: q.total, deposit: q.deposit, extras: q.lines};
+  const summary = P31.renderCareSummary(snapshot);
+  const first = document.querySelector('#review-content .review-section');
+  const edit = first.querySelector('button');
+  summary.prepend(edit);
+  first.replaceWith(summary);
   ['review-total', 'payment-total'].forEach(id => document.getElementById(id).textContent = money(q.total) + '*');
   document.querySelectorAll('.quote-card>.fine').forEach(p => { p.textContent = '*Starting estimate, not a final quote. Final pricing follows walkthrough review. Your deposit is 50% of the starting service price, before add-ons.'; });
   document.querySelectorAll('.quote-card .gold-note').forEach(p => { p.textContent = 'Your starting-price deposit is credited toward the final service total.'; });

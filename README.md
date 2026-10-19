@@ -39,3 +39,5 @@ Customer portal Virtual Walkthrough accepts sample photos/videos, room labels an
 Before production: implement authenticated private uploads, server-side file validation, retention/deletion rules, owner review, final-quote approval and actual invoicing. Keep payment processing, email, live authentication/availability, and the admin dashboard deferred until configured. The supplied logo is used outside the cinematic hero.
 
 Pricing verification: `node --test tests/service-pricing.test.cjs`.
+
+Booking Review and the customer portal share a service summary showing scope, included tasks, selected paid add-ons, starting service price, estimated total, and starting-price deposit. New demo bookings save their included-care snapshot with the existing session record. Portal overview, booking details, walkthrough, and payment breakdown keep final pricing pending virtual walkthrough review; no final balance is issued automatically.
