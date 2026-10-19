@@ -18,7 +18,24 @@ function refreshPricing() {
     input.closest('label').querySelector('small').textContent = input.disabled ? 'Included in your selected deep-cleaning care · no additional charge' : a.detail;
   });
   const included = document.querySelector('#included-care'); included.hidden = !q.included.length;
-  included.textContent = 'Included: ' + q.included.map(id => P31.addons.find(a => a.id === id).label).join(', ') + '. Select Kitchen as a focus room to include refrigerator and stove/oven care in Deep Cleaning.';
+  included.textContent = q.included.includes('fridge')
+    ? 'Baseboards, refrigerator, and stove / oven care are included in this Deep Cleaning selection. No separate add-on charges apply to these items.'
+    : 'Baseboard cleaning is included with Deep Cleaning. Select Kitchen as a focus room to include refrigerator and stove / oven care, too.';
+  const service = document.querySelector('input[name=care]:checked').value;
+  const list = document.querySelector('#care-inclusions-list'); list.replaceChildren();
+  P31.includedCare(service, { mode: document.querySelector('#booking-apartment-service').value, focus: [...selected] }).forEach(text => {
+    const li = document.createElement('li'); li.textContent = text; list.append(li);
+  });
+  document.querySelector('#care-inclusions-note').textContent = service === 'Deep Cleaning'
+    ? 'For detailed appliance care, select Kitchen on the floor plan. Refrigerator and stove / oven cleaning will then be included in your starting estimate.'
+    : service === 'Apartment Cleaning'
+    ? 'The apartment must be empty for both Move-In and Move-Out cleaning. Laundry and detailed appliance or baseboard care are optional additions.'
+    : service === 'Airbnb Turnover'
+    ? 'Your package covers the selected guest suite. Laundry is optional and charged per load, including folding and hanging.'
+    : 'Laundry and detailed refrigerator, stove / oven, and baseboard cleaning are available as optional additions.';
+  document.querySelector('#room-focus-explanation').textContent = service === 'Deep Cleaning'
+    ? 'Select rooms needing extra attention. Kitchen focus includes refrigerator and stove / oven cleaning; the rest of your selected home remains part of the service.'
+    : 'Select rooms needing extra attention. These preferences do not remove other rooms from your selected cleaning package.';
   const box = document.querySelector('#live-quote-lines');
   box.replaceChildren();
   [['Starting service price', q.base], ...q.lines.filter(a => !a.included).map(a => [a.label + (a.id === 'laundry' ? ' × ' + a.quantity : ''), a.amount]), ['Booking deposit · 50% of starting service', q.deposit]].forEach(([label, amount]) => {
