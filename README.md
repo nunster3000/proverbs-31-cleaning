@@ -26,7 +26,7 @@ Generated assets and their prompts are retained with the source. Screenshot proo
 
 The public `nunster3000/proverbs-31-cleaning` GitHub repository is connected to the Vercel project. Pushes to `main` deploy production; other branches use Vercel previews. The configured repository root is `cinematic-preview/`.
 
-Live authentication, server-backed availability, outbound email, and payment processing remain deferred.
+The Supabase backend implementation is ready for project configuration. Until Supabase is connected, this deployment remains a fictional demo. Payment processing and business-email delivery are not connected.
 
 ## Service rules updated after owner clarification
 
@@ -36,7 +36,7 @@ Optional add-ons: laundry $20/load (folding and hanging), refrigerator $75, stov
 
 Customer portal Virtual Walkthrough accepts sample photos/videos, room labels and notes. Local previews can be saved to this device's IndexedDB, restored, removed, or cleared. Nothing is uploaded. Limits are prototype choices (6 files, 20 MB each, 80 MB total), not approved production policies. Restarting booking clears session details, not saved walkthrough media. The demo privacy page explains deletion.
 
-Before production: implement authenticated private uploads, server-side file validation, retention/deletion rules, owner review, final-quote approval and actual invoicing. Keep payment processing, email, live authentication/availability, deferred until configured. The supplied logo is used outside the cinematic hero.
+Before production: connect and verify the Supabase authentication, database, private uploads, pricing, and scheduling implementation; approve retention/deletion rules and configure payment and email providers. The supplied logo is used outside the cinematic hero.
 
 Pricing verification: `node --test tests/service-pricing.test.cjs`.
 
@@ -51,6 +51,32 @@ Supported workflow: add a manual booking; enforce owner working days, arrival-bl
 
 Issuing balances requires walkthrough review, customer quote approval, and completion. Starting estimates remain visible separately from reviewed totals. Adjustments invalidate earlier quote approval. Payments are manual records or simulations, not processor transactions. The owner calendar does not yet replace the sample calendar in the customer booking flow; a shared backend scheduling service remains required.
 
-This is a public, unauthenticated prototype for fictional data, not a production admin application. Before real use, implement owner/customer authentication, roles, server-side workflow and payment validation, private media storage, data retention, audit logging, actual email/invoice delivery, and calendar integration if selected. Reset owner demo in Settings restores sample owner records but does not delete saved walkthrough files or the customer session record. Clear walkthrough media through the customer portal or browser site data.
+The local demo is public and unauthenticated, for fictional data only. Connected mode uses the separate authenticated workspace and Supabase backend. Follow BACKEND_SETUP.md before real use; business email, online payments, retention jobs, and optional calendar integration still require configuration. Reset owner demo in Settings restores sample owner records but does not delete saved walkthrough files or the customer session record. Clear walkthrough media through the customer portal or browser site data.
 
 Verification: `node --test tests/*.test.cjs`. Manual browser checks cover blocked-time conflicts, manual bookings, owner media, quote review/acceptance, account and guest final-payment simulations, and small-screen layouts.
+
+
+## Supabase backend (ready to configure)
+
+Start with [BACKEND_SETUP.md](BACKEND_SETUP.md). No Supabase project or credentials are currently connected. The production demo stays in local/fictional mode until `BACKEND_ENABLED=true` and all required Supabase environment variables are set.
+
+The implemented backend includes:
+
+- PostgreSQL customer records and immutable visit contact/property snapshots.
+- Authenticated owner/customer access with row-level security and owner grants stored outside browser control.
+- Server-calculated prices, transactional capacity checks, blocked arrival windows, and atomic initial recurring reservations.
+- Walkthrough review, revision-checked quote approval, an idempotent manual payment ledger, private owner notes, and audit history.
+- Private signed uploads, file signature/size/type validation, scoped short-lived preview URLs, and a pending notification outbox.
+- Connected booking mode on `care.html` and an authenticated `workspace.html` for owner/customer database workflows.
+
+Do not copy browser demo records into the database. The supplied SQL migration seeds only the service catalog and initial schedule settings. Online payments and business emails remain explicitly disconnected; a booking never claims a deposit was paid.
+
+```sh
+cd cinematic-preview
+npm ci
+npm test
+npm run build
+npm run dev
+```
+
+Open `http://127.0.0.1:8766/`. Vercel runs the same static build and `api/app.js` server function. The public output is `dist/`, which excludes server sources, environment files, and migrations. SQL/RLS tests use a real embedded PostgreSQL engine with Supabase Auth/Storage schema fixtures; hosted Auth, Storage, SMTP, CAPTCHA, and deployment integration require verification after configuration.

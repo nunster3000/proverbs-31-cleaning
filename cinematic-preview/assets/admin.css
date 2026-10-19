@@ -849,3 +849,5 @@ input[type="file"] {
 .owner-quote-status h3 {
   font-weight: 400;
 }
+
+.backend-cover{position:fixed;inset:0;z-index:10000;background:#f8f4eb;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:30px;text-align:center;font:18px/1.7 Georgia,serif;color:#806642}

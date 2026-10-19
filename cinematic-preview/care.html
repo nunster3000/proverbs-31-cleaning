@@ -77,4 +77,4 @@ function showSetupSuccess(){const box=document.querySelector('#setup-content');b
 document.querySelector('#setup-close').onclick=()=>{setupToken++;setupDialog.close()};setupDialog.addEventListener('close',()=>setupToken++);
 
 const entryParams=new URLSearchParams(location.search),entrySpace=entryParams.get('space'),entryType=entryParams.get('type');if(entrySpace!==null&&/^[0-7]$/.test(entrySpace)){document.querySelector('#scope').value=entrySpace;loadScope()}if(P31.services.includes(entryType)){document.querySelectorAll('input[name=care]').forEach(r=>r.checked=r.value===entryType)}
-</script><script src="assets/care-services.js"></script></html>
+</script><script src="assets/care-services.js"></script><script src="assets/backend-mode.js"></script></html>

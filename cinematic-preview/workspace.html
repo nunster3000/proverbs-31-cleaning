@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>Your Workspace · Proverbs 31</title>
+    <link rel="stylesheet" href="assets/admin.css" />
+    <link rel="stylesheet" href="assets/service-updates.css" />
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="index.html"
+        ><img
+          src="assets/proverbs31-logo.png"
+          alt="Proverbs 31 Cleaning Company logo"
+        /><span>PROVERBS 31<small>CLEANING COMPANY</small></span></a
+      >
+      <nav>
+        <a href="index.html">Home</a><a href="care.html">Book a cleaning</a
+        ><button class="outline" id="sign-out" hidden>Sign out</button>
+      </nav>
+    </header>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <p class="eyebrow" id="workspace-role">YOUR CARE WORKSPACE</p>
+        <nav id="workspace-nav"></nav>
+      </aside>
+      <main>
+        <div class="page-heading">
+          <div>
+            <h1 id="workspace-title">Opening your workspace…</h1>
+            <p id="workspace-subtitle"></p>
+          </div>
+          <button class="outline" id="refresh" hidden>Refresh</button>
+        </div>
+        <p id="workspace-message" role="status" aria-live="polite"></p>
+        <section id="workspace-content"></section>
+      </main>
+    </div>
+    <dialog id="workspace-dialog" aria-label="Booking details">
+      <div class="dialog-header">
+        <h2>Booking details</h2>
+        <button
+          class="close"
+          id="close-workspace-dialog"
+          aria-label="Close booking"
+        >
+          ×
+        </button>
+      </div>
+      <p id="dialog-message" role="status" aria-live="polite"></p>
+      <div id="workspace-detail"></div>
+    </dialog>
+    <script src="assets/backend-client.js"></script>
+    <script src="assets/workspace.js"></script>
+  </body>
+</html>
