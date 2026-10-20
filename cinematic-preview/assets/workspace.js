@@ -1529,6 +1529,9 @@
       $('#workspace-title').focus({preventScroll:true});
       document.querySelectorAll('[data-mobile-view]').forEach(b=>b.setAttribute('aria-current',b.dataset.mobileView===view || b.dataset.mobileView==='More' && !['Bookings','Proverbs 31 Cal','Walkthroughs','Payments'].includes(view)?'page':'false'));
     };
+    $('#dashboard-home').hidden=false;
+    $('#dashboard-home').onclick=()=>selectView('Bookings');
+    document.dispatchEvent(new CustomEvent('p31:authenticated'));
     tabs.forEach(name=>{const b=btn(name,()=>selectView(name));b.dataset.view=name;$('#workspace-nav').append(b);});
     const mobileTabs=me.role==='owner'?['Bookings','Proverbs 31 Cal','Walkthroughs','Payments','More']:tabs;
     mobileTabs.forEach(name=>{

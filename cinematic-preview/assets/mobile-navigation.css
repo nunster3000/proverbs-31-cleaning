@@ -1,0 +1,25 @@
+.mobile-site-controls{display:none}
+.mobile-site-menu{border:1px solid #c6a66f;border-radius:16px;background:#f8f4eb;color:#392a1d;width:min(360px,calc(100vw - 32px));padding:20px;box-shadow:0 20px 70px #251b1640}
+.mobile-site-menu::backdrop{background:#241b16a6;backdrop-filter:blur(4px)}
+.mobile-site-menu>button{display:block;margin-left:auto;border:0;background:transparent;color:inherit;font:14px Arial,sans-serif;min-height:44px;padding:10px}
+.mobile-site-menu nav{display:flex!important;flex-direction:column;align-items:stretch;gap:4px;width:100%;font:18px Georgia,serif}
+.mobile-site-menu nav a{display:flex;align-items:center;min-height:48px;padding:10px 14px;border-bottom:1px solid #dfd1ba;color:inherit;text-decoration:none}
+.mobile-site-menu a:focus-visible,.mobile-site-menu button:focus-visible,.mobile-site-controls :focus-visible{outline:3px solid #b38a45;outline-offset:3px}
+@media(max-width:700px){
+ header.has-mobile-site-nav{display:flex!important;flex-wrap:wrap!important;gap:12px!important;align-items:center!important}
+ header.has-mobile-site-nav>.logo,header.has-mobile-site-nav>.brand{flex:1 1 120px!important;width:auto!important;min-width:0;max-width:100%;font-size:15px!important}
+ header.has-mobile-site-nav>.brand img{width:44px!important;height:44px!important;object-fit:contain}
+ header.has-mobile-site-nav>.brand{font-size:12px!important;gap:8px!important}
+ header.has-mobile-site-nav>.brand small{font-size:8px!important;letter-spacing:.12em!important}
+ header.has-mobile-site-nav>nav,header.has-mobile-site-nav>.toplinks,header.has-mobile-site-nav>a:not(.logo):not(.brand){display:none!important}
+ header.has-mobile-site-nav>.mobile-site-controls{display:flex!important;align-items:center;gap:8px;margin-left:auto;flex:0 0 auto;font:14px Arial,sans-serif}
+ .mobile-site-controls a,.mobile-site-controls button{display:inline-flex!important;align-items:center;justify-content:center;min-height:44px;min-width:44px;border:1px solid currentColor;border-radius:6px;background:transparent;color:inherit;padding:9px 12px;text-decoration:none;cursor:pointer}
+ .mobile-site-controls button{font-size:22px;padding:8px}
+ .workspace-app header.has-mobile-site-nav>nav{display:flex!important;width:auto!important;flex:0 1 auto}
+ .workspace-app header.has-mobile-site-nav>nav a{display:none!important}
+ .hero header.has-mobile-site-nav{opacity:1!important;visibility:visible!important;transform:none!important;pointer-events:auto!important}
+}
+@media(max-width:700px){
+ .workspace-app header.has-mobile-site-nav>nav #dashboard-home{display:none}
+ .workspace-app .mobile-login{font-size:12px;max-width:108px;text-align:center}
+}
