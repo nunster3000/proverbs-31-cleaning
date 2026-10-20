@@ -688,3 +688,48 @@ test('reschedule and cancellation require explicit admin review, preserve money,
  await act('owner','review_request',{request_id:req.id,decision:'approved',notes:'Repeated review'});await assert.rejects(()=>act('owner','review_request',{request_id:req.id,decision:'declined',notes:'Conflicting review'}),/already been reviewed/);
  assert.deepEqual(await snapshot(),money);
 });
+
+test('two real customer identities only read their own related records and cannot forge access to private media',async()=>{
+ await ready;const made={};const files={};
+ for(const [index,who] of ['alice','bob'].entries()){
+  const d=new Date();d.setDate(d.getDate()+180+index);const date=d.toISOString().slice(0,10);
+  await login('owner');await rpc('api_owner_schedule',['day_windows',JSON.stringify({date,windows:['morning']})]);
+  await login(who);[made[who]]=await rpc('api_create_booking',[JSON.stringify({name:who,address:who+' private address',service:'standard',space_id:3,date,arrival:'morning'}),crypto.randomUUID()]);
+  files[who]=await rpc('api_upload_request',[made[who].id,JSON.stringify({filename:who+'.png',mime:'image/png',bytes:8,room:'Bedroom'})]);
+  await db.exec('reset role');
+  await db.query("update public.walkthrough_files set status='ready' where id=$1",[files[who].id]);
+  await db.query("insert into storage.objects(bucket_id,name,metadata) values('walkthroughs',$1,'{}')",[files[who].path]);
+  await db.query("insert into public.quote_adjustments(booking_id,label,cents) values($1,'Private adjustment',100)",[made[who].id]);
+  await db.query("insert into public.payment_records(request_key,booking_id,kind,cents,method,recorded_by) values($1,$2,'deposit',100,'Test receipt',$3)",[crypto.randomUUID(),made[who].id,ids.owner]);
+  await db.query("insert into public.booking_requests(booking_id,kind,notes) values($1,'reschedule','Private request')",[made[who].id]);
+  await db.query("insert into public.owner_notes values($1,'Private admin note')",[made[who].id]);
+ }
+ for(const who of ['alice','bob']){
+  const other=who==='alice'?'bob':'alice';await login(who);
+  assert.equal((await db.query('select * from public.customers where auth_user_id=$1',[ids[other]])).rows.length,0);
+  assert.equal((await db.query('select * from public.bookings where id=$1',[made[other].id])).rows.length,0);
+  assert.equal((await db.query('select * from public.bookings where id=$1',[made[who].id])).rows.length,1);
+  for(const table of ['quote_adjustments','payment_records','booking_requests','walkthrough_files']){
+   assert.equal((await db.query(`select * from public.${table} where booking_id=$1`,[made[other].id])).rows.length,0,table+' leaked another customer');
+   assert.equal((await db.query(`select * from public.${table} where booking_id=$1`,[made[who].id])).rows.length,1,table+' hid own record');
+  }
+  for(const table of ['owner_notes','audit_events','notification_outbox','calendar_days','time_blocks','business_settings'])assert.equal((await db.query('select * from public.'+table)).rows.length,0,table+' leaked admin data');
+  assert.equal(await rpc('booking_access',[made[other].id]),false);
+  assert.equal(await rpc('walkthrough_access',[files[other].path,false]),false);
+  assert.equal((await db.query('select * from storage.objects where name=$1',[files[other].path])).rows.length,0);
+  assert.equal((await db.query('select * from storage.objects where name=$1',[files[who].path])).rows.length,1);
+  for(const [name,args] of [
+   ['api_booking_action',[made[other].id,'request_change',JSON.stringify({kind:'cancel',notes:'Forged'}),null]],
+   ['api_booking_action',[made[other].id,'accept_quote',JSON.stringify({revision:0}),null]],
+   ['api_remove_upload',[files[other].id]],
+   ['api_save_owner_notes',[made[who].id,'Forged admin note']],
+   ['api_owner_customer',[made[other].customer_id,JSON.stringify({name:'Forged'})]]
+  ])await assert.rejects(()=>rpc(name,args),undefined,name+' permitted unauthorized mutation');
+  await assert.rejects(()=>db.query("insert into storage.objects(bucket_id,name) values('walkthroughs',$1)",[files[other].path]));
+  for(const table of ['customers','bookings','booking_requests','payment_records'])await assert.rejects(()=>db.query('delete from public.'+table));
+ }
+ await login('alice',true);assert.equal((await db.query('select * from public.bookings')).rows.length,0);assert.equal((await db.query('select * from public.customers')).rows.length,0);assert.equal((await db.query('select * from storage.objects')).rows.length,0);
+ await db.exec('reset role;set role anon');await assert.rejects(()=>db.query('select * from public.bookings'));await assert.rejects(()=>db.query('select * from public.customers'));
+ await login('owner');assert.equal((await db.query('select * from public.bookings where id=any($1::uuid[])',[[made.alice.id,made.bob.id]])).rows.length,2);
+ const publicSlots=JSON.stringify(await rpc('api_availability',[made.alice.visit_date,1]));assert.ok(!publicSlots.includes('private address'));assert.ok(!publicSlots.includes(made.alice.id));
+});
