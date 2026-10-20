@@ -5,3 +5,11 @@ html{overflow-x:clip}body{min-width:0}img,video{max-width:100%}main,section,arti
 @media(max-width:360px){header>.toplinks{gap:5px 10px!important}.intro h1{font-size:31px}.steps{gap:5px!important}.steps li{font-size:9px!important}.steps span{padding:6px 8px!important}.hotspot{min-width:30px;min-height:30px}.balance-card{padding:19px}.review-details>div{grid-template-columns:70px minmax(0,1fr)}.service h3{font-size:20px}.service .price{font-size:34px}.confirm-detail{grid-template-columns:65px minmax(0,1fr)}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
 @media(max-width:600px){.tabs{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;overflow:visible}.tabs button{white-space:normal;line-height:1.4;text-align:center;padding:9px 7px;font-size:12px}.tabs button[aria-selected=true]{border-radius:4px}}
+/* Comfortable phone controls; labeled room choices supplement the compact diagram. */
+@media(max-width:700px){
+  .room-chips .chip,.scene-tools .textbutton,.calhead button{min-height:44px;min-width:44px}
+  .scene-tools{flex-wrap:wrap;gap:8px}.scene-tools .textbutton{white-space:normal;text-align:left}
+  .day{min-height:40px}.blocks .block{min-height:48px}
+  .summary button,.customer-fields button,.page-nav a{min-height:44px}
+  .summary{padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+}

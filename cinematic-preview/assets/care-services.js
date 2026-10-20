@@ -88,7 +88,7 @@ fillReview = function () {
   summary.prepend(edit);
   first.replaceWith(summary);
   ['review-total', 'payment-total'].forEach(id => document.getElementById(id).textContent = money(q.total) + '*');
-  document.querySelectorAll('.quote-card>.fine').forEach(p => { p.textContent = '*Starting estimate, not a final quote. Final pricing follows walkthrough review. Your deposit is 50% of the starting service price, before add-ons.'; });
+  document.querySelectorAll('.quote-card>.fine:not(#payment-visit)').forEach(p => { p.textContent = '*Starting estimate, not a final quote. Final pricing follows walkthrough review. Your deposit is 50% of the starting service price, before add-ons.'; });
   document.querySelectorAll('.quote-card .gold-note').forEach(p => { p.textContent = 'Your starting-price deposit is credited toward the final service total.'; });
   ['review-total','payment-total'].forEach(id => {
     const card = document.getElementById(id).closest('.quote-card');
