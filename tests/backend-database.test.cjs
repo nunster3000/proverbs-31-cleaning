@@ -61,6 +61,7 @@ create table storage.objects(id uuid primary key default gen_random_uuid(),bucke
   await db.exec(fs.readFileSync("cinematic-preview/supabase/migrations/002_owner_pricing.sql", "utf8"));
   await db.exec(fs.readFileSync("cinematic-preview/supabase/migrations/003_manual_bookings_progress.sql", "utf8"));
   await db.exec(fs.readFileSync("cinematic-preview/supabase/migrations/004_booking_milestones.sql", "utf8"));
+  await db.exec(fs.readFileSync("cinematic-preview/supabase/migrations/005_late_completion_evidence.sql", "utf8"));
   await db.query("insert into private.owner_accounts values($1)", [ids.owner]);
 })();
 async function rpc(name, args) {
@@ -620,6 +621,8 @@ test('deposit, walkthrough approval and verified completion uploads govern miles
  await rpc('api_upload_finish',[after.id,ids.owner]);await rpc('api_upload_finish',[after.id,ids.owner]);
  const completed=(await db.query('select * from public.bookings where id=$1',[b.id])).rows[0];assert.equal(completed.status,'completed');assert.equal(completed.quote_status,'accepted');assert.equal(completed.final_cents,prepared.final_cents);
  await login('owner');
- const extra=await rpc('api_upload_request',[b.id,JSON.stringify({...file,purpose:'completion'})]);await db.exec('reset role');await db.query("insert into storage.objects(bucket_id,name,metadata) values('walkthroughs',$1,$2)",[extra.path,JSON.stringify({size:100,mimetype:'image/png'})]);await rpc('api_upload_finish',[extra.id,ids.owner]);
+ await rpc('api_booking_action',[b.id,'issue_invoice','{}',null]);
+ const extra=await rpc('api_upload_request',[b.id,JSON.stringify({...file,purpose:'completion'})]);assert.equal(await rpc('walkthrough_access',[extra.path,true]),true);await login('alice');assert.equal(await rpc('walkthrough_access',[extra.path,true]),false);await db.exec('reset role');await db.query("insert into storage.objects(bucket_id,name,metadata) values('walkthroughs',$1,$2)",[extra.path,JSON.stringify({size:100,mimetype:'image/png'})]);await rpc('api_upload_finish',[extra.id,ids.owner]);
+ assert.equal((await db.query('select invoice_issued from public.bookings where id=$1',[b.id])).rows[0].invoice_issued,true);
  assert.equal((await db.query("select count(*)::integer n from public.notification_outbox where booking_id=$1 and kind='service_completed'",[b.id])).rows[0].n,1);
 });
