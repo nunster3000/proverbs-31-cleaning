@@ -124,6 +124,7 @@
           [...(state.settings?.windows || []),...(state.days || []).flatMap(d=>d.windows)].forEach(id=>names[id]=P31Windows.label(id));
         }
         if(me.role==='customer'){state.attention=packet.customerNotices;updateAttention();}
+        if(me.role!=="owner")document.querySelectorAll('[data-booking-checklist]').forEach(node=>{const b=records.find(row=>row.id===node.dataset.bookingChecklist);if(b){const step=node.contains(document.activeElement)?document.activeElement.closest('[data-checklist-step]')?.dataset.checklistStep:null;const next=P31Checklist.render(b,target=>detail(records.find(row=>row.id===b.id),target));node.replaceWith(next);if(step)next.querySelector('[data-checklist-step="'+step+'"] button')?.focus({preventScroll:true});}});
         document.querySelectorAll('[data-booking-progress]').forEach(node=>{const b=records.find(row=>row.id===node.dataset.bookingProgress);if(b)node.replaceWith(progress(b));});
         document.querySelectorAll('[data-booking-status]').forEach(node=>{const b=records.find(row=>row.id===node.dataset.bookingStatus);if(b)node.textContent=(node.closest('#workspace-detail')?'Status: ':'')+(P31Workflow.milestone(b)<0 && b.status!=='cancelled'?'Awaiting deposit':statusLabel(b.status));});
         const dialog=$('#workspace-dialog');
@@ -354,6 +355,7 @@
         c.append(facts,progress(b),foot,n("p",b.final_cents===null?"Starting estimate · subject to walkthrough review":"Reviewed total · "+({awaiting_customer:"Awaiting your approval",accepted:"Approved",draft:"In review"}[b.quote_status] || b.quote_status.replaceAll("_"," ")),"fine"));
         if(b.status==="confirmed")c.append(n("p",b.access_signed_at?"Home-access authorization signed":me.role==="owner"?"Waiting for customer · Home-access authorization":"Action needed · Sign home-access authorization","badge"));
         if(b.status==="confirmed" && !b.access_signed_at && me.role!=="owner")c.append(btn("Review access authorization",()=>detail(records.find(row=>row.id===b.id),true),"primary"));
+        if(me.role!=="owner")c.append(P31Checklist.render(b,target=>detail(records.find(row=>row.id===b.id),target)));
         c.append(btn("Open booking", () => {const latest=records.find(row=>row.id===b.id);if(latest)detail(latest);else{render();msg("This booking is no longer available in this view.");}}));
         root.append(c);
       });
@@ -828,6 +830,7 @@
     });
   }
   function detail(b, focusAccess=false) {
+    const checklistTarget=typeof focusAccess==="string"?focusAccess:null;
     if (!b) return;
     clearPreviews();
     $("#booking-update-notice").hidden=true;dialogDirty=false;
@@ -836,6 +839,7 @@
     const root = $("#workspace-detail");
     root.replaceChildren();
     const info = section(b.customers?.name || "Your cleaning");
+    info.dataset.checklistTarget="progress";
     info.append(progress(b));
     summary(b, info);
     const property = b.property || b.customers || {};
@@ -864,9 +868,10 @@
       ),
     );
     root.append(info);
-    root.append(P31Access.booking(b,{focus:focusAccess,arrivalLabel:arrivalName(b.arrival),owner:me.role==="owner",api:L.api,save:fn=>act(fn,"Home-access authorization signed.")}));
+    root.append(P31Access.booking(b,{focus:focusAccess===true || checklistTarget==="access",arrivalLabel:arrivalName(b.arrival),owner:me.role==="owner",api:L.api,save:fn=>act(fn,"Home-access authorization signed.")}));
     const figures = P31Workflow.totals(b);
     const quote = section("Your pricing review");
+    quote.dataset.checklistTarget="quote";
     quote.classList.add("quote-comparison");
     const comparison = n("dl");
     [["Original starting estimate",figures.starting],["Adjustments",figures.adjustments],[b.final_cents === null ? "Current estimate*" : "Reviewed total",figures.total],["Recorded payments",figures.paid],["Remaining balance",figures.balance]].forEach(([title,value])=>{
@@ -923,6 +928,7 @@
       );
     }
     const media = section("Virtual walkthrough");
+    media.dataset.checklistTarget="walkthrough";
     media.append(
       n(
         "p",
@@ -1023,9 +1029,20 @@
       uploadForm.append(preview,progress,status,n("p","iPhone HEIC photos are converted to JPG on your device. Up to 6 files, 20 MB each and 80 MB total per booking. Avoid including people, IDs, payment details, or access codes in your photos.","fine"));
     }
     root.append(media);
+    if(me.role!=="owner"){
+      const payments=section("Payments & next steps");payments.dataset.checklistTarget="payments";
+      payments.append(n("p","Starting-price deposit: "+money(b.quote_snapshot.deposit_cents)+" · Recorded deposit: "+money(b.deposit_paid_cents)));
+      payments.append(n("p",b.invoice_issued?"Final balance: "+money(figures.balance):"Your final balance has not been issued yet."));
+      payments.append(n("p","Contact Gabrielle to arrange payment or ask about a payment already sent. Online payment processing is not connected. Your checklist updates when Gabrielle records the payment."));
+      const contact=n("a","Contact Gabrielle","outline");contact.href="contact.html";contact.target="_blank";contact.rel="noopener noreferrer";contact.setAttribute("aria-label","Contact Gabrielle (opens a new tab)");payments.append(contact);root.append(payments);
+    }
     completionMedia(b,root);
     if (me.role === "owner") ownerDetail(b, root);
     if (!$("#workspace-dialog").open) $("#workspace-dialog").showModal();
+    if(checklistTarget && checklistTarget!=="access"){
+      const target=checklistTarget==='progress'?root.querySelector('[data-booking-progress]'):root.querySelector('[data-checklist-target="'+checklistTarget+'"]');
+      if(target){target.scrollIntoView({block:"start"});const heading=target.querySelector('h2,h3');if(heading){heading.tabIndex=-1;heading.focus({preventScroll:true});}else{target.tabIndex=-1;target.focus({preventScroll:true});}}
+    }
   }
   function completionMedia(b,root){
     const files=(b.walkthrough_files || []).filter(f=>f.purpose==='completion' && f.status!=='deleted');
