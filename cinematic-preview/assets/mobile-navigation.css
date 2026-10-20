@@ -23,3 +23,7 @@
  .workspace-app header.has-mobile-site-nav>nav #dashboard-home{display:none}
  .workspace-app .mobile-login{font-size:12px;max-width:108px;text-align:center}
 }
+
+/* Keep navigation usable while online booking is unavailable. */
+.booking-connection-pending>header{position:relative!important;z-index:10000;background:#f8f4eb}
+.booking-connection-pending .backend-cover{padding-top:170px;overflow:auto;justify-content:flex-start}

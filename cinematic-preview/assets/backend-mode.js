@@ -5,7 +5,8 @@
     return;
   }
   if (page !== 'care.html') return;
-  const covered = [...document.body.children];
+  document.body.classList.add('booking-connection-pending');
+  const covered = [...document.body.children].filter(node => node.tagName !== 'HEADER' && node.id !== 'mobile-site-menu');
   covered.forEach(node => node.inert = true);
   const cover = document.createElement('section');
   cover.className = 'backend-cover';
@@ -45,6 +46,7 @@
     await window.P31LiveCareReady;
     covered.forEach(node => node.inert = false);
     cover.remove();
+    document.body.classList.remove('booking-connection-pending');
   } catch {
     unavailable('The booking connection is unavailable. Please contact the company or try again later.');
   }
