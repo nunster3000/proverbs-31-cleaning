@@ -12,6 +12,7 @@
     page = 0,
     activeId,
     pricing = null,
+    siteContent = null,
     calendarDate = new Date().toLocaleDateString("en-CA", {
       timeZone: "America/New_York",
     });
@@ -86,6 +87,7 @@
     if (me.role === "owner") {
       state = await L.api("owner-state");
       if (view === "Pricing") pricing = await L.api("catalog");
+      if (view === "Website content") siteContent = await L.api("site-content");
       customers = await L.api("customers", { query: { page } });
       [
         ...(state.settings?.windows || []),
@@ -673,6 +675,18 @@
         });
         root.append(box);
       });
+    } else if (view === "Website content") {
+      root.append(n('p','Update the About Us and Contact pages. Saved changes are public. Leave the phone number blank to hide it until you are ready.','fine'));
+      if(!siteContent){root.append(btn('Load website content',()=>act(async()=>{siteContent=await L.api('site-content')})));return;}
+      const box=section('About Us & Contact'),fields={},specs=[['Company introduction','company_intro',3000],['Owner name','founder_name',120],['Owner introduction / biography','founder_bio',5000],['Contact introduction','contact_intro',2000],['Business contact email','contact_email',254],['Phone number (optional)','contact_phone',40],['Service area','service_area',500],['Address / distance review note','service_area_note',1000]];
+      specs.forEach(([label,key,max])=>{const field=key.includes('intro')||key==='founder_bio'||key==='service_area_note'?n('textarea'):input(key==='contact_email'?'email':key==='contact_phone'?'tel':'text');field.value=siteContent[key] || '';field.maxLength=max;field.required=!['founder_bio','contact_phone'].includes(key);fields[key]=field;});
+      let photoPath=siteContent.photo_path;
+      const photo=n('img'),photoStatus=n('p'),file=input('file');file.accept='image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif';photo.alt='Public owner photo';photo.style.maxWidth='240px';photo.hidden=!siteContent.photo_url;if(siteContent.photo_url)photo.src=siteContent.photo_url;photoStatus.setAttribute('role','status');
+      const upload=btn('Upload owner photo',async()=>{if(!file.files[0])throw Error('Choose an owner photo first.');const chosen=await P31Workflow.prepareFile(file.files[0],[],text=>photoStatus.textContent=text);if(!chosen.type.startsWith('image/')||chosen.size>2097152)throw Error('Choose a JPG, PNG, or WebP photo up to 2 MB. HEIC photos convert automatically.');photoStatus.textContent='Uploading public photo…';const bytes=new Uint8Array(await chosen.arrayBuffer());let binary='';for(let i=0;i<bytes.length;i+=32768)binary+=String.fromCharCode(...bytes.subarray(i,i+32768));const saved=await L.api('site-photo',{method:'POST',data:{mime:chosen.type,base64:btoa(binary)}});photoPath=saved.path;photo.src=saved.url;photo.hidden=false;workspaceDirty=true;photoStatus.textContent='Photo uploaded. Save website content to display it on About Us.';});
+      const remove=btn('Remove photo from About Us',()=>{photoPath=null;photo.hidden=true;workspaceDirty=true;photoStatus.textContent='Save website content to remove the displayed photo.'},'text-btn');
+      const label=n('label','Owner photo');label.append(file);box.append(n('p','Only upload a photo intended for the public website. Up to 2 MB. Contact email changes do not change sign-in or admin permissions.','fine'),photo,label,upload,remove,photoStatus);
+      form(box,specs.map(([label,key])=>[label,fields[key]]),'Save website content',()=>act(async()=>{const content=Object.fromEntries(Object.entries(fields).map(([key,field])=>[key,field.value.trim()]));content.photo_path=photoPath;await L.api('site-content',{method:'POST',data:{content,revision:siteContent.revision}});},'Website content published.'));
+      root.append(box);
     } else if (view === "Availability") {
       const c = section("Working days and arrival windows"),
         days = n("fieldset"),
@@ -1495,6 +1509,7 @@
             "Proverbs 31 Cal",
             "Availability",
             "Pricing",
+            "Website content",
             "Activity",
           ]
         : ["Bookings", "Walkthroughs", "Payments", "My Profile"];
@@ -1505,7 +1520,7 @@
       view=name;
       const menu=$('#workspace-menu');if(menu.open)menu.close();
       window.scrollTo({top:0,behavior:'instant'});
-      if(view==='Pricing')act(async()=>{pricing=await L.api('catalog');},'Pricing refreshed.');else render();
+      if(view==='Pricing')act(async()=>{pricing=await L.api('catalog');},'Pricing refreshed.');else if(view==='Website content')act(async()=>{siteContent=await L.api('site-content');},'Website content loaded.');else render();
       $('#workspace-title').focus({preventScroll:true});
       document.querySelectorAll('[data-mobile-view]').forEach(b=>b.setAttribute('aria-current',b.dataset.mobileView===view || b.dataset.mobileView==='More' && !['Bookings','Proverbs 31 Cal','Walkthroughs','Payments'].includes(view)?'page':'false'));
     };

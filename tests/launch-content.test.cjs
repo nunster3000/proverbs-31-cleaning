@@ -5,8 +5,8 @@ const visible=html=>html.replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi,'').r
 test('published page copy contains no fictional customer or demonstration messaging',()=>{
  for(const page of pages){const text=visible(fs.readFileSync(path.join(root,page),'utf8'));assert.doesNotMatch(text,/\bdemo(?:nstration)?\b|Alice Example|Jamie Taylor|555-0100|example\.com|mock payment|sample booking/i,page)}
 });
-test('contact page uses the confirmed owner name and email and a consistent callable phone number',()=>{
- const html=fs.readFileSync(path.join(root,'contact.html'),'utf8');assert.match(visible(html),/Gabrielle Jackson/);assert.match(html,/mailto:gabriellejackson@proverbs31cleaningcoservices\.info/);assert.match(html,/tel:\+13468692479/);assert.match(visible(html),/\(346\) 869-2479/);assert.match(visible(html),/confirm service availability at your address/);
+test('contact page uses the confirmed owner name and email and no unpublished phone number',()=>{
+ const html=fs.readFileSync(path.join(root,'contact.html'),'utf8');assert.match(visible(html),/Gabrielle Jackson/);assert.match(html,/mailto:gabriellejackson@proverbs31cleaningcoservices\.info/);assert.doesNotMatch(html,/346|869-2479|tel:/);assert.match(visible(html),/based on distance/);
 });
 test('service information explains review and deposit rules without invented fees or refund guarantees',()=>{
  const text=visible(fs.readFileSync(path.join(root,'service-information.html'),'utf8'));assert.match(text,/50% of the starting service price, before optional add-ons/);assert.match(text,/appointment remains unchanged until the company approves/);assert.match(text,/does not automatically apply cancellation fees or issue refunds/);assert.match(text,/not yet enabled/);assert.doesNotMatch(text,/non.?refundable|24.hour|48.hour|guaranteed refund/i);

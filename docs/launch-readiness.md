@@ -4,7 +4,7 @@
 
 - Removed the visible “About this demonstration” privacy heading.
 - Corrected Contact to Gabrielle Jackson and added the confirmed email: gabriellejackson@proverbs31cleaningcoservices.info.
-- Retained flyer phone (346) 869-2479 and “Atlanta and surrounding areas”; added address-availability confirmation language. No unapproved city/ZIP coverage was invented.
+- Removed the phone number at the user’s request. Retained the approved Atlanta-area wording and added manual address/distance review. No city/ZIP boundary is enforced.
 - Added Booking and service information, linked from public pages: starting estimates, 50% starting-service deposits, walkthrough/price review, change requests, first-four recurring reservations, and current contact-only booking/payment arrangements.
 - Retained explicit no-automatic-fee/no-automatic-refund behavior; did not invent notice periods, nonrefundable deposits, guarantees, or fee amounts.
 - Clarified the interim privacy notice and its current launch status. This is not the final account privacy policy.
@@ -14,8 +14,8 @@
 
 ## Business confirmation still required before account registration opens
 
-1. Confirm that (346) 869-2479 is the current customer-facing phone number. The owner name/email are confirmed in the conversation, but the phone comes from the original flyer.
-2. Confirm Atlanta-area city/ZIP boundaries, any travel charges, and whether quotes must be manually checked for location. The website does not enforce a geographical boundary today.
+1. Phone is intentionally unpublished. Gabrielle may add a customer-facing phone later through Website content.
+2. Atlanta and surrounding areas is approved. Gabrielle decides whether to approve each address based on distance. Any future travel charges require her explicit policy.
 3. Approve cancellation/rescheduling notice requirements and how already paid deposits/final payments are handled. No automatic fees or refunds are implemented.
 4. Set customer-record, walkthrough and completion-media retention periods, who handles deletion/correction requests, and which payment/audit records must remain. Implement the corresponding deletion/retention process before promising it publicly.
 5. Approve the final privacy notice describing fields collected, purposes, owner access, Supabase/Vercel/email providers, session storage, and retention/deletion practices. The current notice keeps online sign-in disabled and explains that online terms will be updated before registration opens.
@@ -35,3 +35,9 @@ FTC business guidance emphasizes accurate privacy promises and a written data-re
 
 https://www.ftc.gov/business-guidance/resources/protecting-personal-information-guide-business
 https://www.ftc.gov/business-guidance/privacy-security/consumer-privacy
+
+## Editable business pages
+
+About Us now has a company introduction, owner introduction and public photo layout. Owner-only Website content controls update About Us and Contact without code. The phone defaults to blank; owner biography and photo are optional until Gabrielle supplies them. Content changes use revision checks and an audit log. Owner business photos use a separate public site-media bucket; customer walkthroughs remain private. New controls remain behind disabled sign-in until provider setup.
+
+Browser verification: published and cleared a fictional phone in the isolated editor; Contact displayed a `tel:` link while populated and no link after clearing. Also saved an isolated owner biography/photo, verified public rendering, then restored blank biography/photo fields. No fictional content or phone was saved to production.

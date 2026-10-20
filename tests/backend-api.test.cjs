@@ -275,3 +275,17 @@ test('private previews reject unverified uploads and verification failures never
  h=createHandler({env,clientFactory:factory,fetchFile:async()=>{throw Error('Transfer timed out')}});assert.ok((await call(h,{url:'/api/app?route=upload-finish',method:'POST',token:'valid',body:{id}})).value.error);assert.equal(finished,0);
  h=createHandler({env,clientFactory:factory,fetchFile:async()=>({ok:true,arrayBuffer:async()=>Buffer.from('not a video')})});assert.match((await call(h,{url:'/api/app?route=upload-finish',method:'POST',token:'valid',body:{id}})).value.error,/does not match/);assert.equal(finished,0);
 });
+
+test('business copy is publicly readable while page edits and owner-photo uploads reject customers',async()=>{
+ const row={founder_name:'Gabrielle Jackson',contact_phone:'',photo_path:null,revision:1};let reads=0;
+ const publicHandler=createHandler({env:{...env,AUTH_ENABLED:'false'},clientFactory:()=>({from:()=>({select:()=>({single:async()=>{reads++;return{data:row}}})})})});assert.deepEqual((await call(publicHandler,{url:'/api/app?route=site-content'})).value,{...row,photo_url:null});assert.equal(reads,1);
+ const customer=createHandler({env,clientFactory:()=>({auth:{getUser:async()=>({data:{user:{id:'customer',email_confirmed_at:'2026-01-01'}}})},rpc:async()=>({data:false})})});
+ for(const route of ['site-content','site-photo'])assert.equal((await call(customer,{url:'/api/app?route='+route,method:'POST',token:'valid',body:{role:'owner'}})).value.error,'Owner access required');
+});
+test('owner photo upload validates image bytes and uses only the public business bucket',async()=>{
+ let uploads=0;const h=createHandler({env,clientFactory:(_url,key)=>key===env.SUPABASE_SERVICE_ROLE_KEY?{storage:{from:bucket=>{assert.equal(bucket,'site-media');return{upload:async(path,bytes,options)=>{assert.match(path,/^owner\/[0-9a-f-]+\.png$/);assert.equal(options.upsert,false);uploads++;return{}},getPublicUrl:path=>({data:{publicUrl:'https://example.supabase.co/storage/v1/object/public/site-media/'+path}})}}}}:{auth:{getUser:async()=>({data:{user:{id:'owner',email_confirmed_at:'2026-01-01'}}})},rpc:async()=>({data:true})}});
+ const req=body=>call(h,{url:'/api/app?route=site-photo',method:'POST',token:'valid',body});
+ assert.ok((await req({mime:'image/svg+xml',base64:Buffer.from('<svg/>').toString('base64')})).value.error);
+ assert.ok((await req({mime:'image/png',base64:Buffer.from('<script/>').toString('base64')})).value.error);assert.equal(uploads,0);
+ const out=await req({mime:'image/png',base64:'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a2ioAAAAASUVORK5CYII='});assert.match(out.value.url,/site-media\/owner\//);assert.equal(uploads,1);
+});

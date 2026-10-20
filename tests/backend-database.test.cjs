@@ -65,6 +65,7 @@ create table storage.objects(id uuid primary key default gen_random_uuid(),bucke
   await db.exec(fs.readFileSync("cinematic-preview/supabase/migrations/006_admin_attention.sql", "utf8"));
   await db.exec(fs.readFileSync("cinematic-preview/supabase/migrations/007_customer_attention.sql", "utf8"));
   await db.exec(fs.readFileSync("cinematic-preview/supabase/migrations/008_change_request_review.sql", "utf8"));
+  await db.exec(fs.readFileSync("cinematic-preview/supabase/migrations/009_website_content.sql", "utf8"));
   await db.query("insert into private.owner_accounts values($1)", [ids.owner]);
 })();
 async function rpc(name, args) {
@@ -789,4 +790,18 @@ test('every catalog price edit affects new quotes only, preserving saved totals,
  const newer=await make(191);assert.deepEqual(newer.quote_snapshot,newQuote);assert.equal(newer.deposit_paid_cents,0);
  // Verify both apartment subcategories use the same current size-based pricing.
  await login('owner');for(const mode of ['Move-In','Move-Out']){const d=new Date();d.setDate(d.getDate()+(mode==='Move-In'?192:193));const date=d.toISOString().slice(0,10);await rpc('api_owner_schedule',['day_windows',JSON.stringify({date,windows:['morning']})]);const [b]=await rpc('api_create_booking',[JSON.stringify({name:'Apartment QA',email:'apartment@example.com',address:'Local test address',service:'apartment',space_id:3,date,arrival:'morning',apartment_mode:mode}),crypto.randomUUID()]);assert.equal(b.apartment_mode,mode);assert.equal(b.quote_snapshot.base_cents,spaces.find(s=>s.id===3).base_cents+1001)}
+});
+
+test('public website content is owner editable, versioned and isolated from private customer media',async()=>{
+ await ready;await login('alice');const initial=(await db.query('select * from public.site_content')).rows[0];assert.equal(initial.contact_phone,'');assert.equal(initial.founder_name,'Gabrielle Jackson');assert.equal(initial.founder_bio,'');
+ await assert.rejects(()=>rpc('api_owner_content',[JSON.stringify({company_intro:'Customer overwrite'}),initial.revision]),/Owner/);
+ await assert.rejects(()=>db.query("update public.site_content set founder_name='Forged'"));
+ await login('owner');const saved=await rpc('api_owner_content',[JSON.stringify({company_intro:'Company introduction edited by the owner.',founder_bio:'Owner-approved biography.',contact_phone:''}),initial.revision]);assert.equal(saved.revision,initial.revision+1);assert.equal(saved.founder_bio,'Owner-approved biography.');
+ await assert.rejects(()=>rpc('api_owner_content',[JSON.stringify({founder_name:'Stale overwrite'}),initial.revision]),/changed/);
+ await assert.rejects(()=>rpc('api_owner_content',[JSON.stringify({contact_email:'javascript:alert(1)'}),saved.revision]));
+ await assert.rejects(()=>rpc('api_owner_content',[JSON.stringify({photo_path:'customer/private-room.jpg'}),saved.revision]),/Upload/);
+ const path='owner/'+crypto.randomUUID()+'.jpg';await db.exec('reset role');await db.query("insert into storage.objects(bucket_id,name,metadata) values('site-media',$1,'{}')",[path]);await login('owner');const photo=await rpc('api_owner_content',[JSON.stringify({photo_path:path}),saved.revision]);assert.equal(photo.photo_path,path);
+ await db.exec('reset role;set role anon');const published=(await db.query('select * from public.site_content')).rows[0];assert.equal(published.company_intro,'Company introduction edited by the owner.');assert.equal(published.photo_path,path);await assert.rejects(()=>rpc('api_owner_content',['{}',photo.revision]));await assert.rejects(()=>db.query('select * from public.customers'));
+ await login('alice');await assert.rejects(()=>db.query("insert into storage.objects(bucket_id,name) values('site-media',$1)",['owner/'+crypto.randomUUID()+'.jpg']));
+ await db.exec('reset role');assert.equal((await db.query("select public from storage.buckets where id='walkthroughs'")).rows[0].public,false);assert.equal((await db.query("select public from storage.buckets where id='site-media'")).rows[0].public,true);
 });

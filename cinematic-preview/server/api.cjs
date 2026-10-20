@@ -102,7 +102,7 @@ function createHandler({
       }
       let body = req.body || {};
       if (typeof body === "string") body = JSON.parse(body);
-      if (Buffer.byteLength(JSON.stringify(body)) > 65536)
+      if (Buffer.byteLength(JSON.stringify(body)) > (route === "site-photo" ? 3000000 : 65536))
         throw new HttpError(413, "Request too large");
       const token = String(req.headers.authorization || "").match(
         /^Bearer (.+)$/,
@@ -121,6 +121,10 @@ function createHandler({
         if (error) throw error;
         return data;
       };
+      if (route === 'site-content' && req.method === 'GET') {
+        const row=await read(db.from('site_content').select('*').single());
+        return reply(200,{...row,photo_url:row.photo_path?db.storage.from('site-media').getPublicUrl(row.photo_path).data.publicUrl:null});
+      }
       if (route === "catalog" && req.method === "GET")
         return reply(200, {
           spaces: await read(db.from("service_spaces").select("*").order("id")),
@@ -273,6 +277,22 @@ function createHandler({
             p_data: body.profile,
           }),
         );
+      }
+      if (route === 'site-content' && req.method === 'POST') {
+        if (!owner) throw new HttpError(403,'Owner access required');
+        return reply(200,await rpc('api_owner_content',{p_data:body.content,p_expected:body.revision}));
+      }
+      if (route === 'site-photo' && req.method === 'POST') {
+        if (!owner) throw new HttpError(403,'Owner access required');
+        const ext={'image/jpeg':'jpg','image/png':'png','image/webp':'webp'}[body.mime];
+        if (!ext || typeof body.base64!=='string' || !/^[A-Za-z0-9+/]*={0,2}$/.test(body.base64)) throw new HttpError(422,'Choose a JPG, PNG, or WebP company photo.');
+        const bytes=Buffer.from(body.base64,'base64');
+        if (!bytes.length || bytes.length>2097152 || !signatureMatches(body.mime,bytes)) throw new HttpError(422,'Use a valid company photo up to 2 MB.');
+        const privileged=clientFactory(env.SUPABASE_URL,env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
+        const path='owner/'+require('node:crypto').randomUUID()+'.'+ext;
+        const {error}=await privileged.storage.from('site-media').upload(path,bytes,{contentType:body.mime,upsert:false,cacheControl:'3600'});
+        if(error)throw error;
+        return reply(201,{path,url:privileged.storage.from('site-media').getPublicUrl(path).data.publicUrl});
       }
       if (route === "owner-state" && req.method === "GET") {
         if (!owner) throw new HttpError(403, "Owner access required");
