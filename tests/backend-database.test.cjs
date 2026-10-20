@@ -60,6 +60,7 @@ create table storage.objects(id uuid primary key default gen_random_uuid(),bucke
   );
   await db.exec(fs.readFileSync("cinematic-preview/supabase/migrations/002_owner_pricing.sql", "utf8"));
   await db.exec(fs.readFileSync("cinematic-preview/supabase/migrations/003_manual_bookings_progress.sql", "utf8"));
+  await db.exec(fs.readFileSync("cinematic-preview/supabase/migrations/004_booking_milestones.sql", "utf8"));
   await db.query("insert into private.owner_accounts values($1)", [ids.owner]);
 })();
 async function rpc(name, args) {
@@ -217,6 +218,13 @@ test("owner quote/payment workflow requires review, approval, completion, and id
     null,
   ]);
   await login("owner");
+  await db.exec('reset role');
+  await db.query("insert into public.walkthrough_files(booking_id,uploader_id,path,filename,mime,bytes,room,status) values($1,$2,$3,'room.png','image/png',100,'Kitchen','ready')",[booking.id,ids.alice,booking.id+'/test-evidence']);
+  await login('owner');
+  await rpc('api_booking_action',[booking.id,'record_payment',JSON.stringify({kind:'deposit',cents:10500,method:'Cash'}),'dddddddd-dddd-4ddd-8ddd-dddddddddddd']);
+  await rpc('api_booking_action',[booking.id,'approve_booking','{}',null]);
+  await rpc('api_booking_action',[booking.id,'status',JSON.stringify({status:'on_the_way'}),null]);
+  await rpc('api_booking_action',[booking.id,'status',JSON.stringify({status:'in_progress'}),null]);
   await rpc("api_booking_action", [
     booking.id,
     "status",
@@ -576,9 +584,42 @@ test('manual prices are owner-only, approval is explicit, and five visit stages 
  await rpc('api_owner_schedule',['day_windows',JSON.stringify({date:d,windows:['morning']})]);
  const made=await rpc('api_create_booking',[JSON.stringify(payload),crypto.randomUUID()]);
  const b=made[0];assert.equal(b.property.first_name,'Jamie');assert.equal(b.property.last_name,'Taylor');assert.equal(b.quote_snapshot.total_cents,18500);assert.equal(b.quote_snapshot.deposit_cents,9250);assert.equal(b.quote_status,'awaiting_approval');assert.equal(b.deposit_paid_cents,0);
- await assert.rejects(()=>rpc('api_booking_action',[b.id,'status',JSON.stringify({status:'completed'}),null]),/approval required/);
+ await assert.rejects(()=>rpc('api_booking_action',[b.id,'status',JSON.stringify({status:'completed'}),null]),/required/);
  await assert.rejects(()=>rpc('api_booking_action',[b.id,'external_approval','{}',null]),/approval notes/);
  await rpc('api_booking_action',[b.id,'external_approval',JSON.stringify({notes:'Customer approved the total by phone today.'}),null]);
+ await rpc('api_booking_action',[b.id,'record_payment',JSON.stringify({kind:'deposit',cents:9250,method:'Cash'}),crypto.randomUUID()]);
+ await rpc('api_booking_action',[b.id,'approve_booking','{}',null]);
  for(const status of ['confirmed','on_the_way','in_progress','completed']){const updated=await rpc('api_booking_action',[b.id,'status',JSON.stringify({status}),null]);assert.equal(updated.status,status);}
  await login('bob');await assert.rejects(()=>rpc('api_booking_action',[b.id,'status',JSON.stringify({status:'confirmed'}),null]));
+});
+
+test('deposit, walkthrough approval and verified completion uploads govern milestones',async()=>{
+ await ready;await login('owner');const future=new Date();future.setDate(future.getDate()+55);const date=future.toISOString().slice(0,10);
+ await rpc('api_owner_schedule',['day_windows',JSON.stringify({date,windows:['morning']})]);
+ await login('alice');
+ const [b]=await rpc('api_create_booking',[JSON.stringify({name:'Alice',address:'Sample home',service:'standard',space_id:3,date,arrival:'morning'}),crypto.randomUUID()]);
+ const file={filename:'room.png',mime:'image/png',bytes:100,room:'Kitchen'};
+ await assert.rejects(()=>rpc('api_upload_request',[b.id,JSON.stringify({...file,purpose:'completion'})]));
+ const before=await rpc('api_upload_request',[b.id,JSON.stringify(file)]);
+ await db.exec('reset role');await db.query("insert into storage.objects(bucket_id,name,metadata) values('walkthroughs',$1,$2)",[before.path,JSON.stringify({size:100,mimetype:'image/png'})]);
+ await rpc('api_upload_finish',[before.id,ids.alice]);await login('owner');
+ await rpc('api_booking_action',[b.id,'review',JSON.stringify({notes:'Room images reviewed.'}),null]);
+ await assert.rejects(()=>rpc('api_booking_action',[b.id,'approve_booking','{}',null]),/Deposit/);
+ const partial=await rpc('api_booking_action',[b.id,'record_payment',JSON.stringify({kind:'deposit',cents:100,method:'Cash'}),crypto.randomUUID()]);assert.equal(partial.status,'requested');
+ const paid=await rpc('api_booking_action',[b.id,'record_payment',JSON.stringify({kind:'deposit',cents:b.quote_snapshot.deposit_cents-100,method:'Cash'}),crypto.randomUUID()]);assert.equal(paid.status,'awaiting_walkthrough');
+ await assert.rejects(()=>rpc('api_booking_action',[b.id,'status',JSON.stringify({status:'confirmed'}),null]),/approved walkthrough/);
+ const confirmed=await rpc('api_booking_action',[b.id,'approve_booking','{}',null]);assert.equal(confirmed.status,'confirmed');
+ const prepared=await rpc('api_booking_action',[b.id,'prepare_quote','{}',null]);await login('alice');await rpc('api_booking_action',[b.id,'accept_quote',JSON.stringify({revision:prepared.revision}),null]);await login('owner');
+ await assert.rejects(()=>rpc('api_booking_action',[b.id,'status',JSON.stringify({status:'in_progress'}),null]),/in order/);
+ await rpc('api_booking_action',[b.id,'status',JSON.stringify({status:'on_the_way'}),null]);await rpc('api_booking_action',[b.id,'status',JSON.stringify({status:'in_progress'}),null]);
+ const after=await rpc('api_upload_request',[b.id,JSON.stringify({...file,purpose:'completion'})]);
+ await db.exec('reset role');
+ await assert.rejects(()=>rpc('api_upload_finish',[after.id,ids.owner]),/match its reservation/);
+ assert.equal((await db.query('select status from public.bookings where id=$1',[b.id])).rows[0].status,'in_progress');
+ await db.query("insert into storage.objects(bucket_id,name,metadata) values('walkthroughs',$1,$2)",[after.path,JSON.stringify({size:100,mimetype:'image/png'})]);
+ await rpc('api_upload_finish',[after.id,ids.owner]);await rpc('api_upload_finish',[after.id,ids.owner]);
+ const completed=(await db.query('select * from public.bookings where id=$1',[b.id])).rows[0];assert.equal(completed.status,'completed');assert.equal(completed.quote_status,'accepted');assert.equal(completed.final_cents,prepared.final_cents);
+ await login('owner');
+ const extra=await rpc('api_upload_request',[b.id,JSON.stringify({...file,purpose:'completion'})]);await db.exec('reset role');await db.query("insert into storage.objects(bucket_id,name,metadata) values('walkthroughs',$1,$2)",[extra.path,JSON.stringify({size:100,mimetype:'image/png'})]);await rpc('api_upload_finish',[extra.id,ids.owner]);
+ assert.equal((await db.query("select count(*)::integer n from public.notification_outbox where booking_id=$1 and kind='service_completed'",[b.id])).rows[0].n,1);
 });

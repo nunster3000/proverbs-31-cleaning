@@ -192,16 +192,16 @@ window.P31Live = (() => {
       const body = new FormData();body.append('cacheControl','0');body.append('',file);xhr.send(body);
     });
   }
-  async function upload(bookingId, file, room, notes = "", progress = () => {}) {
+  async function upload(bookingId, file, room, notes = "", progress = () => {}, purpose = "walkthrough") {
     let task = pendingUploads.get(file);
-    if (task && (task.bookingId !== bookingId || task.room !== room || task.notes !== notes)) {
+    if (task && (task.bookingId !== bookingId || task.room !== room || task.notes !== notes || task.purpose !== purpose)) {
       await api('upload-delete', {method:'POST',data:{id:task.reservation.file.id}});
       pendingUploads.delete(file);task = null;
     }
     progress({stage:'preparing'});
     if (!task) {
-      const reservation = await api('upload', {method:'POST',data:{booking_id:bookingId,file:{filename:file.name,mime:file.type,bytes:file.size,room,notes}}});
-      task = {bookingId,room,notes,reservation,transferred:false};pendingUploads.set(file,task);
+      const reservation = await api('upload', {method:'POST',data:{booking_id:bookingId,file:{filename:file.name,mime:file.type,bytes:file.size,room,notes,purpose}}});
+      task = {bookingId,room,notes,purpose,reservation,transferred:false};pendingUploads.set(file,task);
     }
     if (!task.transferred) {
       progress({stage:'uploading',percent:0});

@@ -17,5 +17,12 @@ window.P31Workflow = (() => {
     const paid = booking.deposit_paid_cents + booking.final_paid_cents;
     return {starting,adjustments,total,reviewed,paid,balance:Math.max(0,total-paid),difference:total-starting};
   }
-  return {validateFile,totals,types};
+  function milestone(b){
+    if(b.status==='cancelled')return -1;
+    if(b.status==='completed')return 4;
+    if(b.deposit_paid_cents<b.quote_snapshot.deposit_cents)return -1;
+    if(!b.walkthrough_approved)return 0;
+    return {confirmed:1,on_the_way:2,in_progress:3}[b.status] ?? 0;
+  }
+  return {validateFile,totals,types,milestone};
 })();

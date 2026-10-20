@@ -36,3 +36,7 @@ test('upload retries reuse their pending reservation instead of consuming anothe
  await L.upload('booking',file,'Bedroom');
  assert.equal(reservations,1);assert.equal(transfers,2);assert.equal(finishes,2);
 });
+
+test('customer progress starts only after the required deposit and confirmation requires owner approval',()=>{
+ const b={status:'requested',quote_snapshot:{deposit_cents:5500},deposit_paid_cents:0,walkthrough_approved:false};assert.equal(W.milestone(b),-1);b.deposit_paid_cents=5500;assert.equal(W.milestone(b),0);b.status='confirmed';assert.equal(W.milestone(b),0);b.walkthrough_approved=true;assert.equal(W.milestone(b),1);b.status='in_progress';assert.equal(W.milestone(b),3);
+});

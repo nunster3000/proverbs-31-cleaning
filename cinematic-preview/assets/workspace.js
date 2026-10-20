@@ -128,9 +128,9 @@
   const statusLabel=value=>visitStages.find(([id])=>id===value)?.[1] || (value==='awaiting_walkthrough'?'Booked · awaiting walkthrough':value==='cancelled'?'Cancelled':value.replaceAll('_',' '));
   function progress(b){
     const box=n('section',undefined,'visit-progress');box.setAttribute('aria-label','Cleaning progress');
-    box.append(n('p',b.status==='cancelled'?'Booking cancelled':'Your visit · '+statusLabel(b.status),'progress-title'));
+    box.append(n('p',b.status==='cancelled'?'Booking cancelled':'Your visit · '+(P31Workflow.milestone(b)<0?'Awaiting deposit':statusLabel(b.status)),'progress-title'));
     if(b.status==='cancelled')return box;
-    const current=b.status==='awaiting_walkthrough'?0:visitStages.findIndex(([id])=>id===b.status);
+    const current=P31Workflow.milestone(b);
     const list=n('ol');visitStages.forEach(([id,text],i)=>{const item=n('li',undefined,i<current?'done':i===current?'current':'');if(i===current)item.setAttribute('aria-current','step');const dot=n('span',i<current?'✓':String(i+1),'stage-dot');dot.setAttribute('aria-hidden','true');item.append(dot,n('span',text));list.append(item);});box.append(list);return box;
   }
   function summary(b, parent) {
@@ -144,7 +144,7 @@
           q.space,
       ),
       n("p", b.visit_date + " · " + arrivalName(b.arrival)),
-      n("p", "Status: " + statusLabel(b.status), "badge"),
+      n("p", "Status: " + (P31Workflow.milestone(b)<0 && b.status!=="cancelled"?"Awaiting deposit":statusLabel(b.status)), "badge"),
     );
     const dl = n("dl", undefined, "care-summary-prices");
     const row = (key, value) => {
@@ -234,7 +234,7 @@
         facts.append(n("span",labels[b.service]),n("span",b.quote_snapshot.space),n("strong",new Date(b.visit_date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})),n("span",arrivalName(b.arrival)));
         const balance=P31Workflow.totals(b);
         const foot=n("div",undefined,"booking-card-footer");
-        foot.append(n("span",statusLabel(b.status),"badge"),n("strong",money(balance.total)+(b.final_cents===null?"*":"")));
+        foot.append(n("span",(P31Workflow.milestone(b)<0 && b.status!=="cancelled"?"Awaiting deposit":statusLabel(b.status)),"badge"),n("strong",money(balance.total)+(b.final_cents===null?"*":"")));
         c.append(facts,progress(b),foot,n("p",b.final_cents===null?"Starting estimate · subject to walkthrough review":"Reviewed total · "+({awaiting_customer:"Awaiting your approval",accepted:"Approved",draft:"In review"}[b.quote_status] || b.quote_status.replaceAll("_"," ")),"fine"));
         c.append(btn("Open booking", () => detail(b)));
         root.append(c);
@@ -787,7 +787,7 @@
       ),
     );
     (b.walkthrough_files || [])
-      .filter((f) => f.status !== "deleted")
+      .filter((f) => f.status !== "deleted" && f.purpose!=="completion")
       .forEach((f) => {
         const row = n("div", undefined, "list-row");
         row.append(n("p", f.room + " · " + f.filename + " · " + (f.status === 'ready' ? 'Verified' : 'Upload incomplete')));
@@ -825,7 +825,7 @@
               "text-btn",
             ),
           );
-        if (!b.invoice_issued && !["cancelled", "completed"].includes(b.status))
+        if (!b.invoice_issued && ["requested", "awaiting_walkthrough"].includes(b.status))
           row.append(
             btn(
               "Remove",
@@ -843,7 +843,7 @@
           );
         media.append(row);
       });
-    if (!b.invoice_issued && !["cancelled", "completed"].includes(b.status)) {
+    if (!b.invoice_issued && ["requested", "awaiting_walkthrough"].includes(b.status)) {
       const file = input("file");
       file.accept = P31Workflow.types.join(',');file.required=true;
       const room = input();room.required=true;room.maxLength=100;
@@ -855,7 +855,7 @@
       file.onchange=()=>{
         clearPreviews();preview.replaceChildren();selectedFile=null;attempted=false;status.textContent='';progress.hidden=true;
         try {
-          const chosen=file.files[0];P31Workflow.validateFile(chosen,b.walkthrough_files || []);selectedFile=chosen;
+          const chosen=file.files[0];P31Workflow.validateFile(chosen,(b.walkthrough_files || []).filter(f=>f.purpose!=="completion"));selectedFile=chosen;
           const url=URL.createObjectURL(chosen);previewUrls.add(url);
           const item=n(chosen.type.startsWith('image/')?'img':'video');item.src=url;
           if(item.tagName==='VIDEO'){item.controls=true;item.preload='metadata';}else item.alt='Selected room photo';
@@ -866,7 +866,7 @@
         const button=uploadForm.querySelector('button');
         try {
           if(!selectedFile)throw Error('Choose a supported room photo or video first.');
-          if(!attempted)P31Workflow.validateFile(selectedFile,b.walkthrough_files || []);
+          if(!attempted)P31Workflow.validateFile(selectedFile,(b.walkthrough_files || []).filter(f=>f.purpose!=="completion"));
           attempted=true;progress.hidden=false;
           const saved=await act(()=>L.upload(b.id,selectedFile,room.value.trim(),notes.value,event=>{
             if(event.percent!==undefined)progress.value=event.percent;
@@ -878,24 +878,32 @@
       uploadForm.append(preview,progress,status,n("p","Up to 6 files, 20 MB each and 80 MB total per booking. Avoid including people, IDs, payment details, or access codes in your photos.","fine"));
     }
     root.append(media);
+    completionMedia(b,root);
     if (me.role === "owner") ownerDetail(b, root);
     if (!$("#workspace-dialog").open) $("#workspace-dialog").showModal();
   }
+  function completionMedia(b,root){
+    const files=(b.walkthrough_files || []).filter(f=>f.purpose==='completion' && f.status!=='deleted');
+    if(me.role!=='owner' && !files.length)return;
+    const box=section('Cleaning completion photos & videos');
+    box.append(n('p','Post-cleaning evidence is separate from the virtual walkthrough. A verified completion upload marks an approved visit in progress as Completed.','fine'));
+    files.forEach(f=>{const row=n('div',undefined,'list-row');row.append(n('p',f.room+' · '+f.filename+' · '+(f.status==='ready'?'Verified':'Upload incomplete')));if(f.status==='ready')row.append(btn('Preview',async()=>{const data=await L.api('file',{query:{id:f.id}});const win=n('dialog',undefined,'live-auth'),item=n(f.mime.startsWith('image/')?'img':'video');item.src=data.url;if(item.tagName==='VIDEO')item.controls=true;else item.alt=f.room;win.append(n('h2','Cleaning completed'),item,btn('Close',()=>win.close()));win.addEventListener('close',()=>{if(item.tagName==='VIDEO')item.pause();win.remove();},{once:true});document.body.append(win);win.showModal();}));box.append(row);});
+    if(me.role==='owner' && ['in_progress','completed'].includes(b.status) && !b.invoice_issued){
+      const file=input('file'),room=input(),notes=n('textarea'),preview=n('div',undefined,'upload-preview'),status=n('p'),meter=n('progress');file.accept=P31Workflow.types.join(',');file.required=true;room.required=true;room.maxLength=100;notes.maxLength=2000;meter.max=100;meter.value=0;meter.hidden=true;meter.setAttribute('aria-label','Completion upload progress');status.setAttribute('role','status');let selected,attempted=false;
+      file.onchange=()=>{preview.replaceChildren();selected=null;attempted=false;try{const chosen=file.files[0];P31Workflow.validateFile(chosen,files);selected=chosen;const url=URL.createObjectURL(chosen);previewUrls.add(url);const item=n(chosen.type.startsWith('image/')?'img':'video');item.src=url;if(item.tagName==='VIDEO')item.controls=true;else item.alt='Post-cleaning photo';preview.append(item);status.textContent='Ready to upload. Successful verification will complete this visit.';}catch(e){file.value='';status.textContent=e.message;}};
+      const f=form(box,[['Room / area completed',room],['Post-cleaning photo or video',file],['Completion notes',notes]],b.status==='completed'?'Add completion evidence':'Upload & mark Completed',async()=>{if(!selected)throw Error('Choose a completion photo or video.');if(!attempted)P31Workflow.validateFile(selected,files);attempted=true;meter.hidden=false;const saved=await act(()=>L.upload(b.id,selected,room.value.trim(),notes.value,event=>{if(event.percent!==undefined)meter.value=event.percent;status.textContent=event.stage==='complete'?'Completed':event.stage==='verifying'?'Verifying upload…':'Uploading completion evidence…';},'completion'),'Completion evidence verified. Visit marked Completed.');if(!saved){status.textContent='Upload did not complete. Retry the selected file.';f.querySelector('button').textContent='Retry completion upload';}});f.append(preview,meter,status);
+    }
+    root.append(box);
+  }
   function ownerDetail(b, root) {
     const manage = section("Manage visit"),
-      status = choice(
-        [
-          "requested",
-          "awaiting_walkthrough",
-          "confirmed",
-          "on_the_way",
-          "in_progress",
-          "completed",
-          "cancelled",
-        ].map((s) => [s, statusLabel(s)]),
-        b.status,
-      ),
+      status = choice([
+        ['', 'Choose a visit update'],['on_the_way','On the way'],['in_progress','Cleaning in progress'],['completed','Completed'],['cancelled','Cancelled']
+      ], ''),
       reason = input();
+    const approve=btn('Approve walkthrough & confirm booking',()=>act(()=>action(b,'approve_booking',{}),'Walkthrough approved. Booking confirmed.'));
+    approve.disabled=!b.reviewed || b.deposit_paid_cents<b.quote_snapshot.deposit_cents || !['requested','awaiting_walkthrough'].includes(b.status);
+    manage.append(n('p','Booked means the starting deposit is recorded. Confirm the walkthrough in the review section below. Travel and cleaning updates are manual.','fine'));
     form(
       manage,
       [
@@ -990,6 +998,7 @@
           "Walkthrough reviewed.",
         ),
     );
+    review.append(approve);
     const adjustment = input(),
       cents = input("number");
     adjustment.required = true;
