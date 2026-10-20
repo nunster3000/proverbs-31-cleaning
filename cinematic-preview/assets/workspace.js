@@ -3,6 +3,7 @@
     $ = (s) => document.querySelector(s);
   const previewUrls = new Set();
   const clearPreviews = () => {previewUrls.forEach(url => URL.revokeObjectURL(url));previewUrls.clear();};
+  let autoSync,recordsEpoch=0,mutations=0,reloading=0;
   let me,
     records = [],
     state = {},
@@ -65,6 +66,7 @@
     if ($("#workspace-dialog").open) $("#dialog-message").textContent = text;
   }
   async function act(fn, success) {
+    recordsEpoch++;mutations++;
     try {
       await fn();
       await reload();
@@ -75,9 +77,11 @@
     } catch (e) {
       msg(e.message);
       return false;
-    }
+    } finally {mutations--;}
   }
   async function reload() {
+    recordsEpoch++;reloading++;
+    try {
     records = await L.api("bookings", { query: { page } });
     if (me.role === "owner") {
       state = await L.api("owner-state");
@@ -89,6 +93,40 @@
       ].forEach((id) => (names[id] = P31Windows.label(id)));
     }
     render();
+    } finally {reloading--;recordsEpoch++;}
+  }
+  function startCustomerSync(){
+    const line=$('#workspace-sync-status');line.hidden=false;
+    autoSync=P31AutoSync.start({
+      fetchUpdates:async()=>{if(mutations || reloading)return null;const epoch=recordsEpoch,currentPage=page;const rows=await L.api('bookings',{query:{page:currentPage}});return {rows,epoch,currentPage};},
+      apply:packet=>{
+        if(!packet || mutations || reloading || packet.epoch!==recordsEpoch || packet.currentPage!==page)return;
+        const previous=records;if(JSON.stringify(previous)===JSON.stringify(packet.rows))return;
+        records=packet.rows;
+        document.querySelectorAll('[data-booking-progress]').forEach(node=>{const b=records.find(row=>row.id===node.dataset.bookingProgress);if(b)node.replaceWith(progress(b));});
+        document.querySelectorAll('[data-booking-status]').forEach(node=>{const b=records.find(row=>row.id===node.dataset.bookingStatus);if(b)node.textContent=(node.closest('#workspace-detail')?'Status: ':'')+(P31Workflow.milestone(b)<0 && b.status!=='cancelled'?'Awaiting deposit':statusLabel(b.status));});
+        const dialog=$('#workspace-dialog');
+        if(dialog.open && activeId){
+          const latest=records.find(b=>b.id===activeId),old=previous.find(b=>b.id===activeId);
+          if(JSON.stringify(latest)!==JSON.stringify(old)){
+            const notice=$('#booking-update-notice');notice.hidden=false;
+            notice.replaceChildren(n('p',latest?'Your booking has been updated. Progress is current; open the latest details when you are ready. Your entries below have been kept.':'Your booking is no longer available in this view. Close the details to return to your bookings.'));
+            if(latest)notice.append(btn('View latest details',()=>detail(records.find(b=>b.id===activeId))));
+            if(!latest || latest.revision!==old?.revision || latest.quote_status!==old?.quote_status)dialog.querySelectorAll('[data-quote-revision]').forEach(b=>b.disabled=true);
+            if(!latest || ['completed','cancelled'].includes(latest.status))dialog.querySelectorAll('form button[type=submit],form>button').forEach(b=>b.disabled=true);
+          }
+        }else if(view!=='My Profile' && !$('#workspace-content').contains(document.activeElement))render();
+        $('#workspace-message').textContent='Booking updated automatically.';
+      },
+      onState:(state,error)=>{
+        line.textContent=state==='connected'?'Updates automatically':'Updates paused · reconnecting…';
+        if(error?.status===401 || error?.status===403){autoSync?.stop();$('#workspace-dialog').close();clearPreviews();records=[];$('#workspace-content').replaceChildren();$('#workspace-detail').replaceChildren();location.replace('sign-in.html');}
+      }
+    });
+    document.addEventListener('visibilitychange',()=>document.visibilityState==='visible'?autoSync.wake():autoSync.pause());
+    window.addEventListener('online',()=>autoSync.wake());window.addEventListener('focus',()=>autoSync.wake());
+    window.addEventListener('pagehide',()=>autoSync.stop());window.addEventListener('pageshow',event=>{if(event.persisted)location.reload();});
+    $('#workspace-dialog').addEventListener('close',()=>{if(me.role==='customer' && view!=='My Profile')render();});
   }
   function choice(values, current) {
     const s = n("select");
@@ -127,7 +165,7 @@
   const visitStages=[['requested','Booked'],['confirmed','Confirmed'],['on_the_way','On the way'],['in_progress','Cleaning in progress'],['completed','Completed']];
   const statusLabel=value=>visitStages.find(([id])=>id===value)?.[1] || (value==='awaiting_walkthrough'?'Booked · awaiting walkthrough':value==='cancelled'?'Cancelled':value.replaceAll('_',' '));
   function progress(b){
-    const box=n('section',undefined,'visit-progress');box.setAttribute('aria-label','Cleaning progress');
+    const box=n('section',undefined,'visit-progress');box.setAttribute('aria-label','Cleaning progress');box.dataset.bookingProgress=b.id;
     box.append(n('p',b.status==='cancelled'?'Booking cancelled':'Your visit · '+(P31Workflow.milestone(b)<0?'Awaiting deposit':statusLabel(b.status)),'progress-title'));
     if(b.status==='cancelled')return box;
     const current=P31Workflow.milestone(b);
@@ -175,6 +213,7 @@
         ),
       ),
     );
+    parent.querySelector(".badge").dataset.bookingStatus=b.id;
     parent.append(
       dl,
       n(
@@ -235,8 +274,9 @@
         const balance=P31Workflow.totals(b);
         const foot=n("div",undefined,"booking-card-footer");
         foot.append(n("span",(P31Workflow.milestone(b)<0 && b.status!=="cancelled"?"Awaiting deposit":statusLabel(b.status)),"badge"),n("strong",money(balance.total)+(b.final_cents===null?"*":"")));
+        foot.querySelector(".badge").dataset.bookingStatus=b.id;
         c.append(facts,progress(b),foot,n("p",b.final_cents===null?"Starting estimate · subject to walkthrough review":"Reviewed total · "+({awaiting_customer:"Awaiting your approval",accepted:"Approved",draft:"In review"}[b.quote_status] || b.quote_status.replaceAll("_"," ")),"fine"));
-        c.append(btn("Open booking", () => detail(b)));
+        c.append(btn("Open booking", () => {const latest=records.find(row=>row.id===b.id);if(latest)detail(latest);else{render();msg("This booking is no longer available in this view.");}}));
         root.append(c);
       });
       if (!list.length) root.append(n("p", "No bookings to show."));
@@ -693,6 +733,7 @@
   function detail(b) {
     if (!b) return;
     clearPreviews();
+    $("#booking-update-notice").hidden=true;
     activeId = b.id;
     const root = $("#workspace-detail");
     root.replaceChildren();
@@ -739,7 +780,7 @@
     if (me.role !== "owner" && b.quote_status === "awaiting_approval") {
       const accept = btn("Accept reviewed total · " + money(figures.total), () => act(()=>action(b,"accept_quote",{revision:b.revision}),"Reviewed quote accepted."),"primary");
       const consent = input("checkbox");accept.disabled=true;
-      consent.onchange=()=>accept.disabled=!consent.checked;
+      accept.dataset.quoteRevision=b.revision;consent.onchange=()=>accept.disabled=!consent.checked || records.find(row=>row.id===b.id)?.revision!==b.revision;
       quote.append(label("I have reviewed the service details, adjustments, and total shown above.",consent),accept);
     }
     root.append(quote);
@@ -1336,6 +1377,7 @@
     }
     L.client.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_OUT") {
+        autoSync?.stop();
         document.querySelector("#workspace-content").replaceChildren();
         document.querySelector("#workspace-detail").replaceChildren();
         location.replace("sign-in.html");
@@ -1401,6 +1443,7 @@
       location.replace("sign-in.html");
     };
     await reload();
+    if(me.role==='customer')startCustomerSync();
   } catch (e) {
     $("#workspace-title").textContent =
       e.status === 401 ? "Sign in to continue" : "Workspace unavailable";

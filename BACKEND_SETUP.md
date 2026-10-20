@@ -172,3 +172,12 @@ Isolated SQL-backed browser tests created a manual booking linked to a test cust
 
 
 Completion evidence is optional: admins can manually mark an approved visit in progress Completed without uploading media. Migration `005_late_completion_evidence.sql` permits owner completion evidence afterward, including after the final balance is issued. Late evidence does not reopen pricing, alter payments, or repeat completion notifications. Pre-cleaning walkthrough edits remain closed.
+
+
+## Automatic customer dashboard updates
+
+Signed-in customer workspaces refresh their authorized bookings through the existing authenticated API every eight seconds while visible, and immediately on focus, network reconnection, or returning to the tab. Hidden tabs pause checks; failures back off up to one minute. Requests do not overlap, stopped responses are discarded, and responses superseded by a customer action/reload are ignored. No new database publication, public subscription, or access permission is introduced.
+
+Booking progress updates in place, including inside an open detail sheet. Draft form text, selected uploads, consent state, focus, and scroll position are preserved. Other changed booking details are available through an explicit View latest details control; stale quote acceptance is disabled. Profile forms are never rebuilt by background updates. Signed-out sessions stop refreshing. This feature remains inactive on production until sign-in is enabled.
+
+Validated with 47 automated tests and an isolated SQL-backed browser test: an admin changed a visit from Confirmed to On the way, the open customer detail updated without refresh, and unsent change-request text remained intact.

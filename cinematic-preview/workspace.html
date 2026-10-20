@@ -33,6 +33,7 @@
           <div>
             <h1 id="workspace-title" tabindex="-1">Opening your workspace…</h1>
             <p id="workspace-subtitle"></p>
+            <p id="workspace-sync-status" class="fine" role="status" hidden></p>
           </div>
           <button class="outline" id="refresh" hidden>Refresh</button>
         </div>
@@ -52,6 +53,7 @@
         </button>
       </div>
       <p id="dialog-message" role="status" aria-live="polite"></p>
+      <div id="booking-update-notice" class="info-strip" role="status" hidden></div>
       <div id="workspace-detail"></div>
     </dialog>
     <nav id="mobile-workspace-nav" aria-label="Workspace navigation"></nav>
@@ -64,6 +66,7 @@
     <script src="assets/schedule-windows.js"></script>
     <script src="assets/proverbs-cal.js"></script>
     <script src="assets/workflow-tools.js"></script>
+    <script src="assets/auto-sync.js"></script>
     <script src="assets/workspace.js"></script>
   </body>
 </html>
