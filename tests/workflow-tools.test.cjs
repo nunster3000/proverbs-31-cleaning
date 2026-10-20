@@ -51,3 +51,45 @@ test('admin sync detects new bookings, uploaded files, and customer approval wit
  packet.rows=JSON.parse(JSON.stringify(before.records));packet.ownerState.activity=[{id:'outside-page',action:'booking_created'}];assert.equal(W.syncChanges(before,packet).newBookings,true);
  packet.ownerState={activity:[],days:[{visit_date:'2026-10-23',windows:[]}]};assert.equal(W.syncChanges(before,packet).any,true);
 });
+
+test('mobile upload validation accepts every supported format at the exact limits and rejects empty/oversized files',()=>{
+ const MB=1024*1024;
+ for(const type of W.types)assert.equal(W.validateFile({type,size:20*MB}),true,type);
+ for(const size of [0,20*MB+1])assert.throws(()=>W.validateFile({type:'video/quicktime',size}),/20 MB/);
+ assert.equal(W.validateFile({type:'video/mp4',size:20*MB},Array.from({length:3},()=>({status:'ready',bytes:20*MB}))),true);
+ assert.throws(()=>W.validateFile({type:'image/jpeg',size:1},Array.from({length:4},()=>({status:'pending',bytes:20*MB}))),/80 MB/);
+ assert.equal(W.validateFile({type:'image/jpeg',size:1},Array.from({length:5},()=>({status:'ready',bytes:1}))),true);
+});
+
+function uploadHarness({outcomes=['success'],finishFailures=0,url='https://project.supabase.co/storage/v1/object/upload/sign/walkthroughs/test?token=scoped'}={}){
+ const calls={reserve:0,transfer:0,finish:0,remove:0,events:[]};
+ class XHR{
+  upload={};open(method,target){assert.equal(method,'PUT');calls.target=target}setRequestHeader(k,v){calls[k]=v}
+  send(body){calls.transfer++;assert.equal(this.timeout,180000);assert.equal(body.parts[1][1].name,'room.mov');this.upload.onprogress?.({lengthComputable:true,loaded:50,total:100});const outcome=outcomes.shift() || 'success';queueMicrotask(()=>{if(outcome==='network')this.onerror();else if(outcome==='timeout')this.ontimeout();else{this.status=outcome==='http'?500:200;this.onload()}})}
+ }
+ class Form{parts=[];append(...a){this.parts.push(a)}}
+ const client={auth:{getSession:async()=>({data:{session:{access_token:'private-session'}}})}};
+ const ctx={URL,URLSearchParams,XMLHttpRequest:XHR,FormData:Form,window:{createSupabaseClient:()=>client},fetch:async(target,options)=>{
+  if(target.includes('route=config'))return{ok:true,json:async()=>({enabled:true,authEnabled:true,url:'https://project.supabase.co',key:'public'})};
+  if(target.includes('route=upload-delete')){calls.remove++;return{ok:true,json:async()=>({removed:true})}}
+  if(target.includes('route=upload-finish')){calls.finish++;const fail=calls.finish<=finishFailures;return{ok:!fail,status:422,json:async()=>fail?{error:'Verification failed'}:{status:'ready'}}}
+  calls.reserve++;return{ok:true,json:async()=>({file:{id:'reservation'},signed_url:url})};
+ }};
+ vm.runInNewContext(fs.readFileSync('cinematic-preview/assets/backend-client.js','utf8'),ctx);
+ return{L:ctx.window.P31Live,calls,file:{name:'room.mov',type:'video/quicktime',size:100},progress:e=>calls.events.push(e)};
+}
+test('mobile XHR upload reports progress and verifies before success',async()=>{
+ const h=uploadHarness();assert.equal((await h.L.upload('booking',h.file,'Bedroom','Keep these notes',h.progress)).status,'ready');assert.equal(h.calls.reserve,1);assert.equal(h.calls.transfer,1);assert.equal(h.calls.finish,1);assert.equal(h.calls['x-upsert'],'false');assert.ok(h.calls.events.some(e=>e.percent===50));assert.equal(h.calls.events.at(-1).stage,'complete');
+});
+for(const failure of ['network','timeout','http'])test('upload survives '+failure+' failure without duplicate reservations',async()=>{
+ const h=uploadHarness({outcomes:[failure,'success'],finishFailures:1});await assert.rejects(()=>h.L.upload('booking',h.file,'Kitchen','Saved notes',h.progress),/interrupted/);assert.ok(!h.calls.events.some(e=>e.stage==='complete'));await h.L.upload('booking',h.file,'Kitchen','Saved notes',h.progress);assert.equal(h.calls.reserve,1);assert.equal(h.calls.transfer,2);assert.equal(h.calls.finish,2);
+});
+test('a lost transfer response succeeds only if server verification finds the uploaded file',async()=>{
+ const h=uploadHarness({outcomes:['network']});await h.L.upload('booking',h.file,'Kitchen');assert.equal(h.calls.reserve,1);assert.equal(h.calls.finish,1);
+});
+test('verification retry reuses the transferred object and preserves its reservation',async()=>{
+ const h=uploadHarness({finishFailures:1});await assert.rejects(()=>h.L.upload('booking',h.file,'Kitchen'),/Verification/);await h.L.upload('booking',h.file,'Kitchen');assert.equal(h.calls.reserve,1);assert.equal(h.calls.transfer,1);assert.equal(h.calls.finish,2);
+});
+test('upload rejects a signed destination outside its own storage project',async()=>{
+ const h=uploadHarness({url:'https://attacker.example/storage/v1/object/upload/sign/stolen',finishFailures:10});await assert.rejects(()=>h.L.upload('booking',h.file,'Kitchen'),/Invalid upload destination/);assert.equal(h.calls.transfer,0);
+});

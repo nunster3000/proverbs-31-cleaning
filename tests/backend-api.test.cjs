@@ -264,3 +264,14 @@ test("connected database can serve its catalog while authenticated operations re
   assert.match(result.value.error,/not enabled yet/);
  }
 });
+
+test('private previews reject unverified uploads and verification failures never finalize them',async()=>{
+ const id='11111111-1111-4111-8111-111111111111';let finished=0,signed=0;
+ const user={id,email_confirmed_at:'2026-01-01',is_anonymous:false};
+ const factory=(_url,key)=>key===env.SUPABASE_SERVICE_ROLE_KEY?{storage:{from:()=>({createSignedUrl:async()=>{signed++;return{data:{signedUrl:'https://storage.example/private'}}}})},rpc:async()=>{finished++;return{data:{status:'ready'}}}}:{auth:{getUser:async()=>({data:{user}})},rpc:async()=>({data:false}),from:()=>({select:()=>({eq:()=>({single:async()=>({data:{id,path:'booking/private',status:'pending',mime:'video/mp4'}})})})})};
+ let h=createHandler({env,clientFactory:factory,fetchFile:async()=>({ok:false})});
+ assert.match((await call(h,{url:'/api/app?route=file&id='+id,token:'valid'})).value.error,/pending/);assert.equal(signed,0);
+ assert.match((await call(h,{url:'/api/app?route=upload-finish',method:'POST',token:'valid',body:{id}})).value.error,/Unable to verify/);assert.equal(finished,0);
+ h=createHandler({env,clientFactory:factory,fetchFile:async()=>{throw Error('Transfer timed out')}});assert.ok((await call(h,{url:'/api/app?route=upload-finish',method:'POST',token:'valid',body:{id}})).value.error);assert.equal(finished,0);
+ h=createHandler({env,clientFactory:factory,fetchFile:async()=>({ok:true,arrayBuffer:async()=>Buffer.from('not a video')})});assert.match((await call(h,{url:'/api/app?route=upload-finish',method:'POST',token:'valid',body:{id}})).value.error,/does not match/);assert.equal(finished,0);
+});

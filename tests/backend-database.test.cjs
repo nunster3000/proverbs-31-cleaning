@@ -733,3 +733,23 @@ test('two real customer identities only read their own related records and canno
  await login('owner');assert.equal((await db.query('select * from public.bookings where id=any($1::uuid[])',[[made.alice.id,made.bob.id]])).rows.length,2);
  const publicSlots=JSON.stringify(await rpc('api_availability',[made.alice.visit_date,1]));assert.ok(!publicSlots.includes('private address'));assert.ok(!publicSlots.includes(made.alice.id));
 });
+
+test('upload quotas and file metadata are enforced by the database, including failed reservations',async()=>{
+ await ready;
+ const create=async offset=>{const d=new Date();d.setDate(d.getDate()+offset);const date=d.toISOString().slice(0,10);await login('owner');await rpc('api_owner_schedule',['day_windows',JSON.stringify({date,windows:['morning']})]);await login('alice');return(await rpc('api_create_booking',[JSON.stringify({name:'Upload QA',address:'Isolated test address',service:'standard',space_id:3,date,arrival:'morning'}),crypto.randomUUID()]))[0]};
+ const b=await create(185),MB=1024*1024;
+ const reserve=(booking,extra={})=>rpc('api_upload_request',[booking.id,JSON.stringify({filename:'room.jpg',mime:'image/jpeg',bytes:100,room:'Bedroom',...extra})]);
+ for(const extra of [{bytes:0},{bytes:20*MB+1},{mime:'image/heic'},{mime:'text/html'},{room:''}])await assert.rejects(()=>reserve(b,extra));
+ for(const mime of ['image/jpeg','image/png','image/webp','video/mp4','video/webm','video/quicktime'])await reserve(b,{mime});
+ await assert.rejects(()=>reserve(b),/file limit/);
+ const files=(await db.query('select * from public.walkthrough_files where booking_id=$1',[b.id])).rows;assert.equal(files.length,6);assert.ok(files.every(f=>f.status==='pending'));
+ await rpc('api_remove_upload',[files[0].id]);await reserve(b);assert.equal((await db.query("select * from public.walkthrough_files where booking_id=$1 and status<>'deleted'",[b.id])).rows.length,6);
+ const total=await create(186);for(let i=0;i<4;i++)await reserve(total,{bytes:20*MB,mime:'video/mp4'});await assert.rejects(()=>reserve(total,{bytes:1}),/file limit/);
+ const check=await create(187),f=await reserve(check,{mime:'video/mp4',bytes:1024});
+ // Missing data and wrong storage metadata must not create a verified upload or review badge.
+ await db.exec('reset role;set role service_role');await assert.rejects(()=>rpc('api_upload_finish',[f.id,ids.alice]),/does not match/);
+ await db.exec('reset role');await db.query("insert into storage.objects(bucket_id,name,metadata) values('walkthroughs',$1,$2)",[f.path,JSON.stringify({size:1023,mimetype:'video/mp4'})]);await db.exec('set role service_role');await assert.rejects(()=>rpc('api_upload_finish',[f.id,ids.alice]),/does not match/);
+ await db.exec('reset role');await db.query('update storage.objects set metadata=$2 where name=$1',[f.path,JSON.stringify({size:1024,mimetype:'text/html'})]);await db.exec('set role service_role');await assert.rejects(()=>rpc('api_upload_finish',[f.id,ids.alice]),/does not match/);
+ await db.exec('reset role');await db.query('update storage.objects set metadata=$2 where name=$1',[f.path,JSON.stringify({size:1024,mimetype:'video/mp4'})]);await db.exec('set role service_role');assert.equal((await rpc('api_upload_finish',[f.id,ids.alice])).status,'ready');await rpc('api_upload_finish',[f.id,ids.alice]);
+ await login('owner');assert.equal((await rpc('api_owner_attention',[[]])).items.filter(i=>i.booking_id===check.id&&i.kind==='walkthrough').length,1);await rpc('api_booking_action',[check.id,'review',JSON.stringify({notes:'Video reviewed. Pricing review notes recorded.'}),null]);assert.equal((await rpc('api_owner_attention',[[]])).items.filter(i=>i.booking_id===check.id&&i.kind==='walkthrough').length,0);
+});
