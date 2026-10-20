@@ -1,6 +1,8 @@
 (async () => {
   const L = P31Live,
     $ = (s) => document.querySelector(s);
+  const previewUrls = new Set();
+  const clearPreviews = () => {previewUrls.forEach(url => URL.revokeObjectURL(url));previewUrls.clear();};
   let me,
     records = [],
     state = {},
@@ -37,7 +39,14 @@
   const btn = (text, fn, cls = "outline") => {
     const b = n("button", text, cls);
     b.type = "button";
-    b.onclick = fn;
+    b.onclick = async () => {
+      if(b.disabled)return;
+      try {
+        const pending=fn();
+        if(pending && typeof pending.then==='function') {b.disabled=true;await pending;}
+      }catch(error){msg(error.message);}
+      finally{if(b.isConnected)b.disabled=false;}
+    };
     return b;
   };
   const input = (type = "text", value = "") => {
@@ -144,15 +153,16 @@
     row("Starting estimate*", money(q.total_cents));
     row("Starting-price deposit", money(q.deposit_cents));
     if (b.final_cents !== null) row("Reviewed total", money(b.final_cents));
-    row("Recorded payments", money(b.deposit_paid_cents + b.final_paid_cents));
+    const figures = P31Workflow.totals(b);
+    row("Pricing adjustments", money(figures.adjustments));
+    row("Deposit recorded", money(b.deposit_paid_cents));
+    row("Other payments recorded", money(b.final_paid_cents));
     row(
       b.invoice_issued ? "Issued remaining balance" : "Estimated remainder",
       money(
         Math.max(
           0,
-          (b.final_cents ?? q.total_cents) -
-            b.deposit_paid_cents -
-            b.final_paid_cents,
+          figures.balance,
         ),
       ),
     );
@@ -608,6 +618,15 @@
       (state.outbox || []).forEach((e) =>
         queue.append(
           n("p", e.kind + " · " + e.recipient + " · " + e.status, "fine"),
+          btn("Preview email template",async()=>{
+            try {
+              const template=await L.api('notification-preview',{query:{id:e.id}});
+              const dialog=n('dialog');dialog.className='email-preview';
+              const frame=n('iframe');frame.setAttribute('sandbox','');frame.title='Email template preview';frame.srcdoc=template.html;
+              dialog.append(n('h2',template.subject),n('p',template.notice,'fine'),frame,btn('Close',()=>dialog.close()));
+              dialog.addEventListener('close',()=>dialog.remove(),{once:true});document.body.append(dialog);dialog.showModal();
+            }catch(error){msg(error.message);}
+          }),
         ),
       );
       root.append(c, queue);
@@ -658,6 +677,7 @@
   }
   function detail(b) {
     if (!b) return;
+    clearPreviews();
     activeId = b.id;
     const root = $("#workspace-detail");
     root.replaceChildren();
@@ -689,18 +709,32 @@
       ),
     );
     root.append(info);
-    if (me.role !== "owner" && b.quote_status === "awaiting_approval")
-      info.append(
-        btn("Accept reviewed quote", () =>
-          act(
-            () => action(b, "accept_quote", { revision: b.revision }),
-            "Reviewed quote accepted.",
-          ),
-        ),
-      );
+    const figures = P31Workflow.totals(b);
+    const quote = section("Your pricing review");
+    quote.classList.add("quote-comparison");
+    const comparison = n("dl");
+    [["Original starting estimate",figures.starting],["Adjustments",figures.adjustments],[b.final_cents === null ? "Current estimate*" : "Reviewed total",figures.total],["Recorded payments",figures.paid],["Remaining balance",figures.balance]].forEach(([title,value])=>{
+      const row=n("div");row.append(n("dt",title),n("dd",money(value)));comparison.append(row);
+    });
+    quote.append(comparison,n("p", "Quote revision " + b.revision + " · " + b.quote_status.replaceAll('_',' '),"fine"));
+    (b.quote_adjustments || []).forEach(item=>quote.append(n("p",item.label + " · " + money(item.cents))));
+    if (b.final_cents === null) quote.append(n("p","This estimate is awaiting walkthrough review. It is not a confirmed final price.","fine"));
+    if (b.quote_status === 'accepted') quote.append(n("p","Customer approval is recorded for this quote. Any later adjustment requires a new review and approval.","fine"));
+    if (me.role !== "owner" && b.quote_status === "awaiting_approval") {
+      const accept = btn("Accept reviewed total · " + money(figures.total), () => act(()=>action(b,"accept_quote",{revision:b.revision}),"Reviewed quote accepted."),"primary");
+      const consent = input("checkbox");accept.disabled=true;
+      consent.onchange=()=>accept.disabled=!consent.checked;
+      quote.append(label("I have reviewed the service details, adjustments, and total shown above.",consent),accept);
+    }
+    root.append(quote);
+    if ((b.payment_records || []).length) {
+      const history=section("Payments recorded");
+      b.payment_records.forEach(payment=>history.append(n("p",money(payment.cents)+" · "+payment.kind+" · "+payment.method+" · "+new Date(payment.created_at).toLocaleDateString())));
+      history.append(n("p","These are payments recorded by the company. No card transaction is processed on this website yet.","fine"));root.append(history);
+    }
     if (me.role !== "owner" && !["completed", "cancelled"].includes(b.status)) {
       const notes = n("textarea");
-      notes.required = true;
+      notes.required = true;notes.maxLength=1000;
       const kind = choice(
         [
           ["reschedule", "Reschedule request"],
@@ -708,6 +742,8 @@
         ],
         "reschedule",
       );
+      info.append(n("p", "A cancellation or rescheduling request does not change your booking until the company reviews it. No automatic fees or refunds are applied.", "fine"));
+      (b.booking_requests || []).forEach(request=>info.append(n("p",request.kind.replaceAll('_',' ')+" · "+(request.resolved?'Reviewed by the company':'Awaiting admin review')+" · "+request.notes,"request-status")));
       form(
         info,
         [
@@ -738,7 +774,8 @@
       .filter((f) => f.status !== "deleted")
       .forEach((f) => {
         const row = n("div", undefined, "list-row");
-        row.append(n("p", f.room + " · " + f.filename + " · " + f.status));
+        row.append(n("p", f.room + " · " + f.filename + " · " + (f.status === 'ready' ? 'Verified' : 'Upload incomplete')));
+        if (f.notes) row.append(n("p",f.notes,"fine"));
         if (f.status === "ready")
           row.append(
             btn(
@@ -753,8 +790,11 @@
                   item.style.maxWidth = "100%";
                   if (item.tagName === "VIDEO") item.controls = true;
                   else item.alt = f.room;
+                  const expired = n("p", "If the preview expires, close it and select Preview again for a fresh private link.","fine");
+                  item.onerror = () => {expired.textContent="This preview could not load. Close it and select Preview again."};
+                  win.addEventListener('close',()=>{if(item.tagName==='VIDEO')item.pause();win.remove();},{once:true});
                   win.append(
-                    item,
+                    n("h3",f.room),item,expired,
                     btn("Close", () => {
                       win.close();
                       win.remove();
@@ -789,27 +829,37 @@
       });
     if (!b.invoice_issued && !["cancelled", "completed"].includes(b.status)) {
       const file = input("file");
-      file.accept =
-        "image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime";
-      file.required = true;
-      const room = input();
-      room.required = true;
-      room.maxLength = 100;
-      const notes = n("textarea");
-      form(
-        media,
-        [
-          ["Room", room],
-          ["Photo or video", file],
-          ["Room notes", notes],
-        ],
-        "Upload securely",
-        () =>
-          act(async () => {
-            if (!file.files[0]) throw new Error("Choose a file.");
-            await L.upload(b.id, file.files[0], room.value, notes.value);
-          }, "Walkthrough file uploaded and verified."),
-      );
+      file.accept = P31Workflow.types.join(',');file.required=true;
+      const room = input();room.required=true;room.maxLength=100;
+      room.placeholder="For example: kitchen or guest bathroom";
+      const notes=n("textarea");notes.maxLength=2000;
+      const preview=n("div",undefined,"upload-preview"),status=n("p"),progress=n("progress");
+      status.setAttribute('role','status');progress.max=100;progress.value=0;progress.hidden=true;progress.setAttribute('aria-label','Walkthrough upload progress');
+      let selectedFile=null,attempted=false;
+      file.onchange=()=>{
+        clearPreviews();preview.replaceChildren();selectedFile=null;attempted=false;status.textContent='';progress.hidden=true;
+        try {
+          const chosen=file.files[0];P31Workflow.validateFile(chosen,b.walkthrough_files || []);selectedFile=chosen;
+          const url=URL.createObjectURL(chosen);previewUrls.add(url);
+          const item=n(chosen.type.startsWith('image/')?'img':'video');item.src=url;
+          if(item.tagName==='VIDEO'){item.controls=true;item.preload='metadata';}else item.alt='Selected room photo';
+          preview.append(item,n("p",chosen.name+' · '+(chosen.size/1024/1024).toFixed(1)+' MB',"fine"));
+        } catch(error) {status.textContent=error.message;file.value='';}
+      };
+      const uploadForm=form(media,[["Room",room],["Photo or video",file],["Room notes",notes]],"Upload securely",async()=>{
+        const button=uploadForm.querySelector('button');
+        try {
+          if(!selectedFile)throw Error('Choose a supported room photo or video first.');
+          if(!attempted)P31Workflow.validateFile(selectedFile,b.walkthrough_files || []);
+          attempted=true;progress.hidden=false;
+          const saved=await act(()=>L.upload(b.id,selectedFile,room.value.trim(),notes.value,event=>{
+            if(event.percent!==undefined)progress.value=event.percent;
+            status.textContent=event.stage==='preparing'?'Preparing private upload…':event.stage==='uploading'?'Uploading · '+(event.percent || 0)+'%':event.stage==='verifying'?'Upload received. Verifying file…':'File verified.';
+          }),"Walkthrough file uploaded and verified. Any earlier quote approval must be reviewed again.");
+          if(!saved){button.textContent='Retry upload';status.textContent='Upload not completed. Keep this file selected and retry; your room notes are preserved.';}
+        }catch(error){status.textContent=error.message;button.textContent='Retry upload';}
+      });
+      uploadForm.append(preview,progress,status,n("p","Up to 6 files, 20 MB each and 80 MB total per booking. Avoid including people, IDs, payment details, or access codes in your photos.","fine"));
     }
     root.append(media);
     if (me.role === "owner") ownerDetail(b, root);
@@ -843,8 +893,23 @@
         ),
     );
     const date = input("date", b.visit_date),
-      window = choice(Object.entries(names), b.arrival),
+      window = choice([["", "Checking availability…"]], ""),
       why = input();
+    let dateRequest=0;
+    const loadArrival=async()=>{
+      const request=++dateRequest;window.disabled=true;
+      window.replaceChildren(Object.assign(n('option','Checking availability…'),{value:''}));
+      try {
+        const days=await L.api('availability',{query:{start:date.value,days:1}});
+        if(request!==dateRequest)return;
+        const slots=(days[0]?.slots || []).filter(slot=>slot.available || (date.value===b.visit_date && slot.id===b.arrival));
+        window.replaceChildren();slots.forEach(slot=>window.append(Object.assign(n('option',arrivalName(slot.id)),{value:slot.id})));
+        if(!slots.length)window.append(Object.assign(n('option','No available arrival blocks'),{value:''}));
+        if(date.value===b.visit_date && slots.some(slot=>slot.id===b.arrival))window.value=b.arrival;
+      }catch(error){if(request===dateRequest){msg(error.message);window.replaceChildren(Object.assign(n('option','Unable to check availability'),{value:''}));}}
+      finally{if(request===dateRequest)window.disabled=false;}
+    };
+    date.onchange=loadArrival;window.required=true;loadArrival();
     date.required = true;
     why.required = true;
     form(
@@ -857,12 +922,10 @@
       "Reschedule visit",
       () =>
         act(
-          () =>
-            action(b, "reschedule", {
-              date: date.value,
-              arrival: window.value,
-              reason: why.value,
-            }),
+          () => {
+            if(window.disabled || !window.value)throw Error('Choose a confirmed available arrival block.');
+            return action(b, "reschedule", {date:date.value,arrival:window.value,reason:why.value});
+          },
           "Visit rescheduled.",
         ),
     );
@@ -927,14 +990,14 @@
           "Adjustment saved; earlier quote approval has been reset.",
         ),
     );
-    review.append(
-      btn("Prepare reviewed quote", () =>
+    review.append(n("p","1. Review the walkthrough. 2. Explain any pricing adjustments. 3. Prepare the quote for customer approval. Completing the visit and issuing a balance require approval.","fine"));
+    const prepare = btn("Prepare reviewed quote", () =>
         act(
           () => action(b, "prepare_quote", {}),
-          "Quote prepared for customer approval.",
-        ),
-      ),
-    );
+          "Quote prepared for customer approval. No email has been sent.",
+        ));
+    prepare.disabled=!b.reviewed || b.invoice_issued;
+    review.append(prepare);
     const approval = input();
     approval.required = true;
     form(
@@ -947,14 +1010,9 @@
           "Approval recorded.",
         ),
     );
-    review.append(
-      btn("Issue final balance", () =>
-        act(
-          () => action(b, "issue_invoice", {}),
-          "Final balance issued. Email delivery is pending provider setup.",
-        ),
-      ),
-    );
+    const issue=btn("Issue final balance",()=>act(()=>action(b,"issue_invoice",{}),"Final balance issued. Email delivery is pending provider setup."));
+    issue.disabled=!b.reviewed || b.quote_status!=='accepted' || b.status!=='completed' || b.final_cents===null || b.invoice_issued;
+    review.append(issue);
     root.append(review);
     const pay = section("Record payment received"),
       amount = input("number"),
@@ -1211,6 +1269,7 @@
   }
   $("#close-workspace-dialog").onclick = () => {
     activeId = null;
+    clearPreviews();
     $("#workspace-dialog").close();
   };
   $("#refresh").onclick = () => act(async () => {}, "Workspace refreshed.");

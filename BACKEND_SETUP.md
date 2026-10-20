@@ -141,3 +141,15 @@ Resend setup is deferred at the user's request. No email sender or Vercel Supaba
 ## Authentication held for later
 
 The business database connection is enabled independently from authentication. Before opening customer accounts, configure Resend/custom SMTP, enable Supabase's email provider and new signups, finish the link/code templates, then set `AUTH_ENABLED=true` and redeploy. Assign verified owner accounts and test customer isolation and uploads before accepting bookings. Public catalog and quote routes can be checked while account routes return 503. No email service is connected by this database-only setup.
+
+## Walkthrough, quote review, and notification preparation
+
+The workspace now provides local photo/video previews, per-file upload progress, retry handling, room labels and notes, and client checks matching the six-file / 20 MB per-file / 80 MB per-booking limits. Uploads use short-lived signed storage URLs; finalization still verifies ownership and file content on the server. Hosted storage transfer must be tested with an authenticated customer before launch.
+
+Customers see the starting estimate, explained adjustments, reviewed total, recorded payments, and remaining balance together. Explicit acknowledgement is required to accept the current quote revision. Later adjustments require renewed approval. Payment history reflects recorded external payments; no online payment processor is connected.
+
+Cancellation and rescheduling requests require admin review. They do not automatically change the booking, impose fees, or promise refunds. Admin rescheduling uses the backend availability list.
+
+Owner-only notification previews render branded HTML and plain text from `cinematic-preview/server/email-templates.cjs`. Authentication template sources are in `cinematic-preview/supabase/templates/`. These are preparation only: Resend, delivery workers, authentication email templates in Supabase, and live sign-in remain unconfigured/disabled. A future delivery worker must snapshot the relevant revision or suppress stale queued notifications before sending.
+
+Validation: automated API, database, upload retry, file limits, totals, and template tests; isolated browser checks for quote acknowledgement, request submission, email preview, and a 390 px customer layout. No production customer records were created for these checks.

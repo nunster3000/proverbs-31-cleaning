@@ -111,6 +111,7 @@ test("protected requests require a verified session and do not trust caller-prov
     "Owner access required",
   );
   assert.equal((await call(h, {url:"/api/app?route=pricing", method:"POST", token:"valid", body:{kind:"space",id:"3",cents:1,expected_cents:11000,role:"owner"}})).value.error, "Owner access required");
+  assert.equal((await call(h,{url:"/api/app?route=notification-preview&id=11111111-1111-4111-8111-111111111111",token:"valid"})).value.error,"Owner access required");
   assert.equal(called, 0);
   assert.match(
     (await call(h, { url: "/api/app?route=bookings" })).value.error,

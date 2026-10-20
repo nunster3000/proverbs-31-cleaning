@@ -1,3 +1,4 @@
+const { renderEmail } = require("./email-templates.cjs");
 const { createClient } = require("@supabase/supabase-js");
 class HttpError extends Error {
   constructor(status, message) {
@@ -298,6 +299,16 @@ function createHandler({
           notes: await read(db.from("owner_notes").select("*")),
         });
       }
+      if (route === "notification-preview" && req.method === "GET") {
+        if (!owner) throw new HttpError(403, "Owner access required");
+        const id=url.searchParams.get("id");
+        if(!uuid(id))throw new HttpError(400,"Notification ID required");
+        const notification=await read(db.from("notification_outbox").select("*").eq("id",id).single());
+        if(!notification)throw new HttpError(404,"Notification not found");
+        const booking=await read(db.from("bookings").select("*,customers(account_enabled),quote_adjustments(*)").eq("id",notification.booking_id).single());
+        if(!booking)throw new HttpError(404,"Booking not found");
+        return reply(200,{...renderEmail(notification.kind,booking,{accountEnabled:!!booking.customers?.account_enabled}),preview:true,notice:"Template preview using current booking details. No email has been sent."});
+      }
       if (route === "pricing" && req.method === "POST") {
         if (!owner) throw new HttpError(403, "Owner access required");
         if (!['space', 'addon', 'deep'].includes(body.kind) || typeof body.id !== 'string' || !Number.isSafeInteger(body.cents) || !Number.isSafeInteger(body.expected_cents))
@@ -335,7 +346,7 @@ function createHandler({
           .from("walkthroughs")
           .createSignedUploadUrl(file.path);
         if (error) throw error;
-        return reply(201, { file, path: data.path, token: data.token });
+        return reply(201, { file, path: data.path, token: data.token, signed_url: data.signedUrl });
       }
       if (["file", "upload-finish", "upload-delete"].includes(route)) {
         const id = route === "file" ? url.searchParams.get("id") : body.id;

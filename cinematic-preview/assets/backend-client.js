@@ -177,30 +177,52 @@ window.P31Live = (() => {
       dialog.showModal();
     });
   }
-  async function upload(bookingId, file, room, notes = "") {
-    const reservation = await api("upload", {
-      method: "POST",
-      data: {
-        booking_id: bookingId,
-        file: {
-          filename: file.name,
-          mime: file.type,
-          bytes: file.size,
-          room,
-          notes,
-        },
-      },
+  const pendingUploads = new WeakMap();
+  function transfer(url, file, progress) {
+    const target = new URL(url);
+    if (target.origin !== new URL(config.url).origin || !target.pathname.startsWith('/storage/v1/object/upload/sign/')) throw new Error('Invalid upload destination.');
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('PUT', target.href);
+      xhr.timeout = 180000;
+      xhr.setRequestHeader('x-upsert', 'false');
+      xhr.upload.onprogress = event => { if (event.lengthComputable) progress({stage:'uploading',percent:Math.round(event.loaded / event.total * 100)}); };
+      xhr.onload = () => xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error('Upload interrupted. Retry this file; your room details are preserved.'));
+      xhr.onerror = xhr.ontimeout = () => reject(new Error('Upload interrupted. Check your connection and retry this file.'));
+      const body = new FormData();body.append('cacheControl','0');body.append('',file);xhr.send(body);
     });
-    const { error } = await client.storage
-      .from("walkthroughs")
-      .uploadToSignedUrl(reservation.path, reservation.token, file, {
-        contentType: file.type,
-      });
-    if (error) throw error;
-    return api("upload-finish", {
-      method: "POST",
-      data: { id: reservation.file.id },
-    });
+  }
+  async function upload(bookingId, file, room, notes = "", progress = () => {}) {
+    let task = pendingUploads.get(file);
+    if (task && (task.bookingId !== bookingId || task.room !== room || task.notes !== notes)) {
+      await api('upload-delete', {method:'POST',data:{id:task.reservation.file.id}});
+      pendingUploads.delete(file);task = null;
+    }
+    progress({stage:'preparing'});
+    if (!task) {
+      const reservation = await api('upload', {method:'POST',data:{booking_id:bookingId,file:{filename:file.name,mime:file.type,bytes:file.size,room,notes}}});
+      task = {bookingId,room,notes,reservation,transferred:false};pendingUploads.set(file,task);
+    }
+    if (!task.transferred) {
+      progress({stage:'uploading',percent:0});
+      try {
+        if (task.reservation.signed_url) await transfer(task.reservation.signed_url,file,progress);
+        else {
+          const {error} = await client.storage.from('walkthroughs').uploadToSignedUrl(task.reservation.path,task.reservation.token,file,{contentType:file.type});
+          if (error) throw error;
+        }
+        task.transferred = true;
+      } catch (error) {
+        // A lost upload response may still mean the file arrived. The server verifies it.
+        try {
+          const result = await api('upload-finish',{method:'POST',data:{id:task.reservation.file.id}});
+          pendingUploads.delete(file);progress({stage:'complete',percent:100});return result;
+        } catch { throw error; }
+      }
+    }
+    progress({stage:'verifying',percent:100});
+    const result = await api('upload-finish',{method:'POST',data:{id:task.reservation.file.id}});
+    pendingUploads.delete(file);progress({stage:'complete',percent:100});return result;
   }
   return {
     init,
