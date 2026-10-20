@@ -181,3 +181,12 @@ Signed-in customer workspaces refresh their authorized bookings through the exis
 Booking progress updates in place, including inside an open detail sheet. Draft form text, selected uploads, consent state, focus, and scroll position are preserved. Other changed booking details are available through an explicit View latest details control; stale quote acceptance is disabled. Profile forms are never rebuilt by background updates. Signed-out sessions stop refreshing. This feature remains inactive on production until sign-in is enabled.
 
 Validated with 47 automated tests and an isolated SQL-backed browser test: an admin changed a visit from Confirmed to On the way, the open customer detail updated without refresh, and unsent change-request text remained intact.
+
+
+## Automatic admin dashboard updates
+
+Owner dashboards now use the same visible-tab eight-second refresh controller. Each owner refresh reads the authorized bookings, owner state (including calendar state and audit activity), customers, and the catalog when Pricing is open. New bookings, verified media changes, and customer price acceptance are identified from booking snapshots and new audit events, including events outside the currently paged booking list.
+
+Clean booking details update automatically; review drafts and selected uploads stay intact with a notice offering the latest details. Calendar, availability, and pricing edits mark the view dirty and prevent background replacement. Saving edits or explicitly opening the latest details loads the new data. Owner activity does not create or send email. No schema or access-policy changes were required.
+
+Validation: 48 automated tests, plus an isolated SQL-backed admin browser check for a newly created customer booking appearing without refresh; new walkthrough evidence arriving while unsaved review notes remained intact; and customer quote acceptance updating the open, clean admin booking sheet automatically.

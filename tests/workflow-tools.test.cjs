@@ -40,3 +40,14 @@ test('upload retries reuse their pending reservation instead of consuming anothe
 test('customer progress starts only after the required deposit and confirmation requires owner approval',()=>{
  const b={status:'requested',quote_snapshot:{deposit_cents:5500},deposit_paid_cents:0,walkthrough_approved:false};assert.equal(W.milestone(b),-1);b.deposit_paid_cents=5500;assert.equal(W.milestone(b),0);b.status='confirmed';assert.equal(W.milestone(b),0);b.walkthrough_approved=true;assert.equal(W.milestone(b),1);b.status='in_progress';assert.equal(W.milestone(b),3);
 });
+
+test('admin sync detects new bookings, uploaded files, and customer approval without treating unchanged snapshots as changes',()=>{
+ const before={records:[{id:'one',quote_status:'awaiting_approval',walkthrough_files:[]}],state:{activity:[]},customers:[],pricing:null};
+ const packet={rows:JSON.parse(JSON.stringify(before.records)),ownerState:{activity:[]},people:[],catalog:null};
+ assert.equal(W.syncChanges(before,packet).any,false);
+ packet.rows.push({id:'two'});assert.equal(W.syncChanges(before,packet).newBookings,true);
+ packet.rows=JSON.parse(JSON.stringify(before.records));packet.rows[0].walkthrough_files=[{id:'photo',status:'ready'}];assert.equal(W.syncChanges(before,packet).uploads,true);
+ packet.rows=JSON.parse(JSON.stringify(before.records));packet.rows[0].quote_status='accepted';assert.equal(W.syncChanges(before,packet).approvals,true);
+ packet.rows=JSON.parse(JSON.stringify(before.records));packet.ownerState.activity=[{id:'outside-page',action:'booking_created'}];assert.equal(W.syncChanges(before,packet).newBookings,true);
+ packet.ownerState={activity:[],days:[{visit_date:'2026-10-23',windows:[]}]};assert.equal(W.syncChanges(before,packet).any,true);
+});

@@ -24,5 +24,16 @@ window.P31Workflow = (() => {
     if(!b.walkthrough_approved)return 0;
     return {confirmed:1,on_the_way:2,in_progress:3}[b.status] ?? 0;
   }
-  return {validateFile,totals,types,milestone};
+  function syncChanges(before,packet){
+    const rows=packet.rows;
+    const freshActivity=(packet.ownerState?.activity || []).filter(e=>!(before.state?.activity || []).some(old=>old.id===e.id));
+    const changed=(a,b)=>JSON.stringify(a)!==JSON.stringify(b);
+    return {
+      any:changed(before.records,rows) || packet.ownerState!==null && changed(before.state,packet.ownerState) || packet.people!==null && changed(before.customers,packet.people) || packet.catalog!==null && changed(before.pricing,packet.catalog),
+      newBookings:rows.some(b=>!before.records.some(old=>old.id===b.id)) || freshActivity.some(e=>e.action==='booking_created'),
+      uploads:freshActivity.some(e=>['walkthrough_uploaded','completion_uploaded'].includes(e.action)) || rows.some(b=>{const old=before.records.find(o=>o.id===b.id);return old && changed(old.walkthrough_files,b.walkthrough_files)}),
+      approvals:freshActivity.some(e=>['accept_quote','record_approval','external_approval'].includes(e.action)) || rows.some(b=>{const old=before.records.find(o=>o.id===b.id);return old && old.quote_status!==b.quote_status && b.quote_status==='accepted'})
+    };
+  }
+  return {validateFile,totals,types,milestone,syncChanges};
 })();

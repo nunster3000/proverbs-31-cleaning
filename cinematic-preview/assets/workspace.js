@@ -3,7 +3,7 @@
     $ = (s) => document.querySelector(s);
   const previewUrls = new Set();
   const clearPreviews = () => {previewUrls.forEach(url => URL.revokeObjectURL(url));previewUrls.clear();};
-  let autoSync,recordsEpoch=0,mutations=0,reloading=0;
+  let autoSync,recordsEpoch=0,mutations=0,reloading=0,workspaceDirty=false,dialogDirty=false;
   let me,
     records = [],
     state = {},
@@ -95,28 +95,56 @@
     render();
     } finally {reloading--;recordsEpoch++;}
   }
-  function startCustomerSync(){
+  function startWorkspaceSync(){
     const line=$('#workspace-sync-status');line.hidden=false;
     autoSync=P31AutoSync.start({
-      fetchUpdates:async()=>{if(mutations || reloading)return null;const epoch=recordsEpoch,currentPage=page;const rows=await L.api('bookings',{query:{page:currentPage}});return {rows,epoch,currentPage};},
+      fetchUpdates:async()=>{
+        if(mutations || reloading)return null;
+        const epoch=recordsEpoch,currentPage=page,currentView=view;
+        const [rows,ownerState,people,catalog]=await Promise.all([
+          L.api('bookings',{query:{page:currentPage}}),
+          me.role==='owner'?L.api('owner-state'):null,
+          me.role==='owner'?L.api('customers',{query:{page:currentPage}}):null,
+          me.role==='owner' && currentView==='Pricing'?L.api('catalog'):null
+        ]);
+        return {rows,ownerState,people,catalog,epoch,currentPage,currentView};
+      },
       apply:packet=>{
-        if(!packet || mutations || reloading || packet.epoch!==recordsEpoch || packet.currentPage!==page)return;
-        const previous=records;if(JSON.stringify(previous)===JSON.stringify(packet.rows))return;
+        if(!packet || mutations || reloading || packet.epoch!==recordsEpoch || packet.currentPage!==page || packet.currentView!==view)return;
+        const previous=records;
+        const changes=P31Workflow.syncChanges({records,state,customers,pricing},packet);
+        if(!changes.any)return;
         records=packet.rows;
+        if(me.role==='owner'){
+          state=packet.ownerState;customers=packet.people;if(packet.catalog)pricing=packet.catalog;
+          [...(state.settings?.windows || []),...(state.days || []).flatMap(d=>d.windows)].forEach(id=>names[id]=P31Windows.label(id));
+        }
         document.querySelectorAll('[data-booking-progress]').forEach(node=>{const b=records.find(row=>row.id===node.dataset.bookingProgress);if(b)node.replaceWith(progress(b));});
         document.querySelectorAll('[data-booking-status]').forEach(node=>{const b=records.find(row=>row.id===node.dataset.bookingStatus);if(b)node.textContent=(node.closest('#workspace-detail')?'Status: ':'')+(P31Workflow.milestone(b)<0 && b.status!=='cancelled'?'Awaiting deposit':statusLabel(b.status));});
         const dialog=$('#workspace-dialog');
         if(dialog.open && activeId){
           const latest=records.find(b=>b.id===activeId),old=previous.find(b=>b.id===activeId);
           if(JSON.stringify(latest)!==JSON.stringify(old)){
-            const notice=$('#booking-update-notice');notice.hidden=false;
-            notice.replaceChildren(n('p',latest?'Your booking has been updated. Progress is current; open the latest details when you are ready. Your entries below have been kept.':'Your booking is no longer available in this view. Close the details to return to your bookings.'));
-            if(latest)notice.append(btn('View latest details',()=>detail(records.find(b=>b.id===activeId))));
-            if(!latest || latest.revision!==old?.revision || latest.quote_status!==old?.quote_status)dialog.querySelectorAll('[data-quote-revision]').forEach(b=>b.disabled=true);
-            if(!latest || ['completed','cancelled'].includes(latest.status))dialog.querySelectorAll('form button[type=submit],form>button').forEach(b=>b.disabled=true);
+            const editing=dialogDirty || dialog.contains(document.activeElement) && document.activeElement.matches('input,select,textarea');
+            if(me.role==='owner' && latest && !editing){
+              const scroll=dialog.scrollTop;detail(latest);dialog.scrollTop=scroll;
+            }else{
+              const notice=$('#booking-update-notice');notice.hidden=false;
+              notice.replaceChildren(n('p',latest?(me.role==='owner'?'Customer updates received. Your edits below have been kept. Open the latest booking when you are ready.':'Your booking has been updated. Progress is current; open the latest details when you are ready. Your entries below have been kept.'):'This booking is no longer available in this view. Close the details to return to your bookings.'));
+              if(latest)notice.append(btn('View latest details',()=>detail(records.find(b=>b.id===activeId))));
+              if(me.role!=='owner'){
+                if(!latest || latest.revision!==old?.revision || latest.quote_status!==old?.quote_status)dialog.querySelectorAll('[data-quote-revision]').forEach(b=>b.disabled=true);
+                if(!latest || ['completed','cancelled'].includes(latest.status))dialog.querySelectorAll('form button[type=submit],form>button').forEach(b=>b.disabled=true);
+              }
+            }
           }
-        }else if(view!=='My Profile' && !$('#workspace-content').contains(document.activeElement))render();
-        $('#workspace-message').textContent='Booking updated automatically.';
+        }else if(!dialog.open && view!=='My Profile' && !workspaceDirty && !$('#workspace-content').contains(document.activeElement))render();
+        if(me.role==='owner'){
+          const notice=$('#workspace-updates');notice.hidden=false;
+          const label=changes.newBookings?'New booking received.':changes.uploads?'Walkthrough or completion media updated.':changes.approvals?'Customer price approval updated.':'Dashboard updated automatically.';
+          notice.replaceChildren(n('p',label+(workspaceDirty?' Your unsaved edits have been kept. Save them to load the latest view.':'')));
+          if(!workspaceDirty && !dialog.open)notice.append(btn('View latest dashboard',()=>render()));
+        }else $('#workspace-message').textContent='Booking updated automatically.';
       },
       onState:(state,error)=>{
         line.textContent=state==='connected'?'Updates automatically':'Updates paused · reconnecting…';
@@ -126,7 +154,7 @@
     document.addEventListener('visibilitychange',()=>document.visibilityState==='visible'?autoSync.wake():autoSync.pause());
     window.addEventListener('online',()=>autoSync.wake());window.addEventListener('focus',()=>autoSync.wake());
     window.addEventListener('pagehide',()=>autoSync.stop());window.addEventListener('pageshow',event=>{if(event.persisted)location.reload();});
-    $('#workspace-dialog').addEventListener('close',()=>{if(me.role==='customer' && view!=='My Profile')render();});
+    $('#workspace-dialog').addEventListener('close',()=>{if(!workspaceDirty && view!=='My Profile')render();});
   }
   function choice(values, current) {
     const s = n("select");
@@ -248,6 +276,8 @@
   }
   function render() {
     const root = $("#workspace-content");
+    workspaceDirty=false;
+    $("#workspace-updates").hidden=true;
     root.replaceChildren();
     $("#workspace-title").textContent = view;
     document.querySelectorAll("#workspace-nav button").forEach((b) => {
@@ -733,7 +763,7 @@
   function detail(b) {
     if (!b) return;
     clearPreviews();
-    $("#booking-update-notice").hidden=true;
+    $("#booking-update-notice").hidden=true;dialogDirty=false;
     activeId = b.id;
     const root = $("#workspace-detail");
     root.replaceChildren();
@@ -1217,7 +1247,7 @@
       .map(space => [space.id, space.label + " · from " + money(space.base_cents + (catalog.services.find(item => item.id === service)?.upgrade_cents || 0)) + "*"]);
     const root = $("#workspace-detail");
     root.replaceChildren();
-    activeId = null;
+    activeId = null;dialogDirty=false;
     const c = section("Add a manual booking"),
       firstName = input(),
       lastName = input(),
@@ -1363,6 +1393,10 @@
     clearPreviews();
     $("#workspace-dialog").close();
   };
+  for(const event of ['input','change'])document.addEventListener(event,e=>{
+    if(e.target.closest('#workspace-dialog'))dialogDirty=true;
+    else if(e.target.closest('#workspace-content'))workspaceDirty=true;
+  });
   $("#refresh").onclick = () => act(async () => {}, "Workspace refreshed.");
   try {
     const config = await L.init();
@@ -1443,7 +1477,7 @@
       location.replace("sign-in.html");
     };
     await reload();
-    if(me.role==='customer')startCustomerSync();
+    startWorkspaceSync();
   } catch (e) {
     $("#workspace-title").textContent =
       e.status === 401 ? "Sign in to continue" : "Workspace unavailable";
