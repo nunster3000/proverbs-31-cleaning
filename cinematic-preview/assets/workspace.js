@@ -203,7 +203,7 @@
     root.replaceChildren();
     $("#workspace-title").textContent = view;
     document.querySelectorAll("#workspace-nav button").forEach((b) => {
-      b.setAttribute("aria-current", b.textContent === view ? "page" : "false");
+      b.setAttribute("aria-current", b.dataset.view === view ? "page" : "false");
     });
     if (view === "Bookings" || view === "Walkthroughs" || view === "Payments") {
       if (me.role === "owner")
@@ -219,8 +219,14 @@
         const c = section(
           b.property?.name || b.customers?.name || b.quote_snapshot.service,
         );
-        c.append(n("p", b.id, "fine"));
-        summary(b, c);
+        c.append(n("p", "Booking · " + b.id.slice(0,8).toUpperCase(), "fine"));
+        c.classList.add("booking-card");
+        const facts=n("div",undefined,"booking-facts");
+        facts.append(n("span",labels[b.service]),n("span",b.quote_snapshot.space),n("strong",new Date(b.visit_date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})),n("span",arrivalName(b.arrival)));
+        const balance=P31Workflow.totals(b);
+        const foot=n("div",undefined,"booking-card-footer");
+        foot.append(n("span",b.status.replaceAll("_"," "),"badge"),n("strong",money(balance.total)+(b.final_cents===null?"*":"")));
+        c.append(facts,foot,n("p",b.final_cents===null?"Starting estimate · subject to walkthrough review":"Reviewed total · "+({awaiting_customer:"Awaiting your approval",accepted:"Approved",draft:"In review"}[b.quote_status] || b.quote_status.replaceAll("_"," ")),"fine"));
         c.append(btn("Open booking", () => detail(b)));
         root.append(c);
       });
@@ -268,7 +274,7 @@
       c.append(
         n(
           "p",
-          "This backend schedule controls availability for website, portal, and manual bookings. Exports are personal calendar copies; manage changes here.",
+          "Manage visits and open cleaning blocks here. Calendar exports save a copy to your personal calendar.",
         ),
       );
       const date = input("date", calendarDate),
@@ -330,8 +336,7 @@
           const partial =
             !off && (state.blocks || []).some((b) => b.visit_date === day);
           const b = btn(
-            String(i) +
-              (count ? " · " + count + " visit" + (count > 1 ? "s" : "") : ""),
+            String(i),
             () => {
               calendarDate = day;
               render();
@@ -348,7 +353,8 @@
               (off ? " · blocked" : partial ? " · time blocked" : ""),
           );
           b.setAttribute("aria-pressed", day === date.value);
-          if (partial) b.append(n("span", "Time blocked"));
+          if(count)b.append(n("span",count+" visit"+(count>1?"s":"")));
+          if (partial) b.append(n("span", "Blocked"));
           grid.append(b);
         }
         showVisits();
@@ -1310,7 +1316,7 @@
       me.role === "owner" ? "OWNER WORKSPACE" : "CUSTOMER WORKSPACE";
     $("#workspace-subtitle").textContent =
       me.role === "owner"
-        ? "Live database · Private customer records · Payments and email delivery pending setup"
+        ? "Your bookings, availability, and customer care."
         : "Your bookings and private walkthrough files.";
     const tabs =
       me.role === "owner"
@@ -1325,16 +1331,27 @@
             "Activity",
           ]
         : ["Bookings", "Walkthroughs", "Payments", "My Profile"];
-    tabs.forEach((name) =>
-      $("#workspace-nav").append(
-        btn(name, () => {
-          view = name;
-          if (view === "Pricing") {
-            act(async () => { pricing = await L.api("catalog"); }, "Pricing refreshed.");
-          } else render();
-        }),
-      ),
-    );
+    document.body.dataset.role=me.role;
+    const iconPaths={Bookings:'M6 3h12v18H6z M9 8h6 M9 12h6 M9 16h4',Walkthroughs:'M3 6h18v14H3z M7 6l2-3h6l2 3 M16 13a4 4 0 1 1-8 0 4 4 0 0 1 8 0',Payments:'M3 5h18v14H3z M3 10h18 M7 15h3',Calendar:'M4 5h16v16H4z M8 3v4 M16 3v4 M4 11h16',Profile:'M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0 M4 21v-3a8 8 0 0 1 16 0v3',More:'M5 12h.01 M12 12h.01 M19 12h.01'};
+    const icon=(key)=>{const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');const path=document.createElementNS(svg.namespaceURI,'path');path.setAttribute('d',iconPaths[key] || iconPaths.More);svg.append(path);return svg;};
+    const selectView=(name)=>{
+      view=name;
+      const menu=$('#workspace-menu');if(menu.open)menu.close();
+      window.scrollTo({top:0,behavior:'instant'});
+      if(view==='Pricing')act(async()=>{pricing=await L.api('catalog');},'Pricing refreshed.');else render();
+      $('#workspace-title').focus({preventScroll:true});
+      document.querySelectorAll('[data-mobile-view]').forEach(b=>b.setAttribute('aria-current',b.dataset.mobileView===view || b.dataset.mobileView==='More' && !['Bookings','Proverbs 31 Cal','Walkthroughs','Payments'].includes(view)?'page':'false'));
+    };
+    tabs.forEach(name=>{const b=btn(name,()=>selectView(name));b.dataset.view=name;$('#workspace-nav').append(b);});
+    const mobileTabs=me.role==='owner'?['Bookings','Proverbs 31 Cal','Walkthroughs','Payments','More']:tabs;
+    mobileTabs.forEach(name=>{
+      const short=({'Proverbs 31 Cal':'Calendar','My Profile':'Profile'})[name] || name;
+      const b=btn('',()=>name==='More'?$('#workspace-menu').showModal():selectView(name));
+      b.dataset.mobileView=name;b.setAttribute('aria-label',name==='More'?'More workspace options':name);
+      b.append(icon(short),n('span',short));b.setAttribute('aria-current',name===view?'page':'false');$('#mobile-workspace-nav').append(b);
+    });
+    tabs.filter(name=>!mobileTabs.includes(name)).forEach(name=>$('#workspace-menu-options').append(btn(name,()=>selectView(name))));
+    $('#close-workspace-menu').onclick=()=>$('#workspace-menu').close();
     $("#sign-out").onclick = async () => {
       await L.client.auth.signOut();
       location.replace("sign-in.html");

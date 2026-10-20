@@ -2,14 +2,15 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
     <meta name="robots" content="noindex,nofollow" />
     <title>Your Workspace · Proverbs 31</title>
     <link rel="stylesheet" href="assets/admin.css" />
     <link rel="stylesheet" href="assets/service-updates.css" />
     <link rel="stylesheet" href="assets/workflow.css" />
+    <link rel="stylesheet" href="assets/workspace-mobile.css" />
   </head>
-  <body>
+  <body class="workspace-app">
     <header>
       <a class="brand" href="index.html"
         ><img
@@ -30,7 +31,7 @@
       <main>
         <div class="page-heading">
           <div>
-            <h1 id="workspace-title">Opening your workspace…</h1>
+            <h1 id="workspace-title" tabindex="-1">Opening your workspace…</h1>
             <p id="workspace-subtitle"></p>
           </div>
           <button class="outline" id="refresh" hidden>Refresh</button>
@@ -52,6 +53,12 @@
       </div>
       <p id="dialog-message" role="status" aria-live="polite"></p>
       <div id="workspace-detail"></div>
+    </dialog>
+    <nav id="mobile-workspace-nav" aria-label="Workspace navigation"></nav>
+    <dialog id="workspace-menu" aria-labelledby="workspace-menu-title">
+      <div class="dialog-header"><h2 id="workspace-menu-title">Your workspace</h2><button class="close" id="close-workspace-menu" aria-label="Close workspace menu">×</button></div>
+      <div id="workspace-menu-options"></div>
+      <a class="outline" href="index.html">Back to home</a>
     </dialog>
     <script src="assets/backend-client.js"></script>
     <script src="assets/schedule-windows.js"></script>
