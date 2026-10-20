@@ -64,6 +64,7 @@ create table storage.objects(id uuid primary key default gen_random_uuid(),bucke
   await db.exec(fs.readFileSync("cinematic-preview/supabase/migrations/005_late_completion_evidence.sql", "utf8"));
   await db.exec(fs.readFileSync("cinematic-preview/supabase/migrations/006_admin_attention.sql", "utf8"));
   await db.exec(fs.readFileSync("cinematic-preview/supabase/migrations/007_customer_attention.sql", "utf8"));
+  await db.exec(fs.readFileSync("cinematic-preview/supabase/migrations/008_change_request_review.sql", "utf8"));
   await db.query("insert into private.owner_accounts values($1)", [ids.owner]);
 })();
 async function rpc(name, args) {
@@ -659,4 +660,31 @@ test('customer notices are private, review reads persist, and approval/payment t
  await db.exec('reset role');await db.query("update public.bookings set status='completed',quote_status='accepted',invoice_issued=true where id=$1",[b.id]);await login('alice');
  notices=await rpc('api_customer_attention',[[b.id]]);assert.equal(notices.items.some(i=>i.booking_id===b.id && i.kind==='approval'),false);assert.equal(notices.items.find(i=>i.booking_id===b.id && i.kind==='payment').amount_cents,15000);
  await db.exec('reset role');await db.query('update public.bookings set final_paid_cents=15000 where id=$1',[b.id]);await login('alice');assert.equal((await rpc('api_customer_attention',[[]])).items.some(i=>i.booking_id===b.id && i.kind==='payment'),false);
+});
+
+test('reschedule and cancellation require explicit admin review, preserve money, and notify both dashboards',async()=>{
+ await ready;await db.exec('reset role');
+ const b=(await db.query('select b.* from public.bookings b join public.customers c on c.id=b.customer_id where c.auth_user_id=$1 limit 1',[ids.alice])).rows[0];
+ const dates=[90,91].map(offset=>{const d=new Date();d.setDate(d.getDate()+offset);return d.toISOString().slice(0,10)});
+ await db.query("update public.bookings set status='confirmed',invoice_issued=false,reviewed=true,walkthrough_approved=true,quote_status='accepted',visit_date=$2,arrival='morning' where id=$1",[b.id,dates[0]]);
+ await login('owner');for(const date of dates)await rpc('api_owner_schedule',['day_windows',JSON.stringify({date,windows:['morning']})]);
+ const snapshot=async()=>{await db.exec('reset role');return(await db.query('select quote_snapshot,final_cents,deposit_paid_cents,final_paid_cents from public.bookings where id=$1',[b.id])).rows[0]};const money=await snapshot();
+ const act=async(role,action,data)=>{await login(role);return rpc('api_booking_action',[b.id,action,JSON.stringify(data),null])};
+ const pending=async()=>{await db.exec('reset role');return(await db.query('select * from public.booking_requests where booking_id=$1 and not resolved order by created_at desc',[b.id])).rows[0]};
+ await act('alice','request_change',{kind:'reschedule',notes:'Please move my visit to the next day.'});let req=await pending();
+ await assert.rejects(()=>act('alice','request_change',{kind:'reschedule',notes:'Duplicate'}),/already awaiting/);
+ await login('owner');assert.ok((await rpc('api_owner_attention',[[]])).items.some(i=>i.id===req.id&&i.kind==='change'));
+ await assert.rejects(()=>act('bob','review_request',{request_id:req.id,decision:'approved',notes:'Unauthorized'}));
+ await assert.rejects(()=>act('owner','review_request',{request_id:req.id,decision:'approved',date:dates[1],arrival:'invalid',notes:'Unavailable'}));assert.ok(await pending());
+ let changed=await act('owner','review_request',{request_id:req.id,decision:'approved',date:dates[1],arrival:'morning',notes:'Your new date is approved.'});assert.equal(changed.status,'confirmed');assert.equal(changed.visit_date,dates[1]);
+ await login('alice');assert.ok((await rpc('api_availability',[dates[0],1]))[0].slots.some(s=>s.id==='morning'&&s.available));assert.equal((await rpc('api_availability',[dates[1],1]))[0].slots.some(s=>s.id==='morning'&&s.available),false);
+ let notices=await rpc('api_customer_attention',[[]]);let updates=notices.items.filter(i=>i.booking_id===b.id&&i.kind==='change');assert.equal(updates.length,1);assert.equal((await rpc('api_customer_attention',[updates.map(i=>i.id)])).items.some(i=>i.kind==='change'&&i.booking_id===b.id),false);
+ await act('alice','request_change',{kind:'cancel',notes:'Please cancel this visit.'});req=await pending();changed=await act('owner','review_request',{request_id:req.id,decision:'declined',notes:'Please contact us to discuss your request.'});assert.equal(changed.status,'confirmed');
+ await act('alice','request_change',{kind:'cancel',notes:'We have discussed this; please cancel.'});req=await pending();changed=await act('owner','review_request',{request_id:req.id,decision:'approved',notes:'Cancellation approved; payment handling will be reviewed separately.'});assert.equal(changed.status,'cancelled');
+ assert.deepEqual(await snapshot(),money);
+ await login('owner');assert.equal((await rpc('api_owner_attention',[[]])).items.some(i=>i.booking_id===b.id),false);
+ await login('alice');assert.ok((await rpc('api_availability',[dates[1],1]))[0].slots.some(s=>s.id==='morning'&&s.available));assert.equal((await rpc('api_customer_attention',[[]])).items.filter(i=>i.booking_id===b.id&&i.kind==='change').length,2);
+ await login('bob');assert.equal((await rpc('api_customer_attention',[[]])).items.some(i=>i.booking_id===b.id),false);
+ await act('owner','review_request',{request_id:req.id,decision:'approved',notes:'Repeated review'});await assert.rejects(()=>act('owner','review_request',{request_id:req.id,decision:'declined',notes:'Conflicting review'}),/already been reviewed/);
+ assert.deepEqual(await snapshot(),money);
 });

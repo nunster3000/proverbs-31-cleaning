@@ -159,8 +159,8 @@
     window.addEventListener('pagehide',()=>autoSync.stop());window.addEventListener('pageshow',event=>{if(event.persisted)location.reload();});
     $('#workspace-dialog').addEventListener('close',()=>{if(!workspaceDirty && view!=='My Profile')render();});
   }
-  const ownerAttentionLabels={booking:'New bookings',walkthrough:'Walkthroughs to review',approval:'Customer price approvals'};
-  const getAttentionLabels=()=>me.role==='owner'?ownerAttentionLabels:{review:'Walkthrough reviewed',approval:'Price needs approval',payment:'Final payment due'};
+  const ownerAttentionLabels={booking:'New bookings',walkthrough:'Walkthroughs to review',approval:'Customer price approvals',change:'Change requests'};
+  const getAttentionLabels=()=>me.role==='owner'?ownerAttentionLabels:{review:'Walkthrough reviewed',approval:'Price needs approval',payment:'Final payment due',change:'Request updates'};
   function updateAttention(){
     if(!me)return;
     const attentionLabels=getAttentionLabels();
@@ -174,17 +174,17 @@
     }
     root.append(tools);
     for(const node of document.querySelectorAll('#workspace-nav button,#mobile-workspace-nav button')){
-      const name=node.dataset.view || node.dataset.mobileView,kind=(me.role==='owner'?{Bookings:'booking',Walkthroughs:'walkthrough',Payments:'approval'}:{Bookings:'approval',Walkthroughs:'review',Payments:'payment'})[name],count=Number(attention.counts[kind] || 0);
+      const name=node.dataset.view || node.dataset.mobileView,kinds=(me.role==='owner'?{Bookings:['booking'],Walkthroughs:['walkthrough'],Payments:['approval'],'Proverbs 31 Cal':['change']}:{Bookings:['approval','change'],Walkthroughs:['review'],Payments:['payment']})[name] || [],count=kinds.reduce((sum,kind)=>sum+Number(attention.counts[kind] || 0),0),description=kinds.map(kind=>attentionLabels[kind]).join(' / ');
       node.querySelector('.notification-badge')?.remove();
-      if(kind && count){const badge=n('span',count>99?'99+':String(count),'notification-badge');badge.setAttribute('aria-hidden','true');node.append(badge);}
-      node.setAttribute('aria-label',name+(kind && count?' · '+count+' '+attentionLabels[kind].toLowerCase():''));
+      if(count){const badge=n('span',count>99?'99+':String(count),'notification-badge');badge.setAttribute('aria-hidden','true');node.append(badge);}
+      node.setAttribute('aria-label',name+(count?' · '+count+' '+description.toLowerCase():''));
     }
   }
   function showAttention(kind){
     const attentionLabels=getAttentionLabels();
     const win=n('dialog',undefined,'attention-sheet');win.setAttribute('aria-label',attentionLabels[kind]);
     const head=n('div',undefined,'dialog-header');head.append(n('h2',attentionLabels[kind]),btn('×',()=>win.close(),'close'));win.append(head);
-    win.append(n('p',me.role==='owner'?(kind==='walkthrough'?'Walkthroughs stay here until their review is saved.':'Opening a booking clears its current new-item badge. Future updates can create a new badge.'):(kind==='review'?'Opening the booking clears this review notice.':kind==='approval'?'Your price stays flagged until you approve the current reviewed total.':'Your final balance stays flagged until payment is recorded. Contact the company to arrange payment.'),'fine'));
+    win.append(n('p',me.role==='owner'?(kind==='change'?'Requests stay here until an admin approves or declines them.':kind==='walkthrough'?'Walkthroughs stay here until their review is saved.':'Opening a booking clears its current new-item badge. Future updates can create a new badge.'):(kind==='change'?'Open the booking to read the admin’s decision.':kind==='review'?'Opening the booking clears this review notice.':kind==='approval'?'Your price stays flagged until you approve the current reviewed total.':'Your final balance stays flagged until payment is recorded. Contact the company to arrange payment.'),'fine'));
     const items=(state.attention?.items || []).filter(item=>item.kind===kind);
     if(!items.length)win.append(n('p','You’re all caught up.'));
     items.forEach(item=>{const row=n('div',undefined,'list-row');row.append(n('p',(item.customer_name?item.customer_name+' · ':'')+(labels[item.service] || '')+' · '+item.visit_date+(item.amount_cents!==null && item.amount_cents!==undefined?' · '+money(item.amount_cents):'')),btn('Open booking',async()=>{const b=await L.api('booking',{query:{id:item.booking_id}});const index=records.findIndex(row=>row.id===b.id);if(index<0)records.push(b);else records[index]=b;win.close();detail(b);}));win.append(row);});
@@ -192,7 +192,7 @@
     win.addEventListener('close',()=>win.remove(),{once:true});document.body.append(win);win.showModal();
   }
   async function readBookingAttention(id){
-    const ids=(state.attention?.items || []).filter(item=>item.booking_id===id && (me.role==='owner'?item.kind!=='walkthrough':item.kind==='review')).map(item=>item.id);
+    const ids=(state.attention?.items || []).filter(item=>item.booking_id===id && (me.role==='owner'?!['walkthrough','change'].includes(item.kind):['review','change'].includes(item.kind))).map(item=>item.id);
     if(!ids.length)return;
     recordsEpoch++;
     try{state.attention=await L.api(me.role==='owner'?'attention-read':'customer-attention-read',{method:'POST',data:{ids}});updateAttention();}
@@ -864,6 +864,10 @@
       b.payment_records.forEach(payment=>history.append(n("p",money(payment.cents)+" · "+payment.kind+" · "+payment.method+" · "+new Date(payment.created_at).toLocaleDateString())));
       history.append(n("p","These are payments recorded by the company. No card transaction is processed on this website yet.","fine"));root.append(history);
     }
+    if(me.role!=='owner'){
+      (b.booking_requests || []).forEach(request=>info.append(n('p',(request.kind==='cancel'?'Cancellation':'Rescheduling')+' request · '+(request.resolved?(request.decision || 'Reviewed'):'Awaiting admin review')+' · '+request.notes+(request.review_notes?' · Admin: '+request.review_notes:''),'request-status')));
+      if(b.status==='cancelled')info.append(n('p','This booking is cancelled. Recorded payments are unchanged. No automatic fees or refunds have been applied.','fine'));
+    }
     if (me.role !== "owner" && !["completed", "cancelled"].includes(b.status)) {
       const notes = n("textarea");
       notes.required = true;notes.maxLength=1000;
@@ -875,7 +879,7 @@
         "reschedule",
       );
       info.append(n("p", "A cancellation or rescheduling request does not change your booking until the company reviews it. No automatic fees or refunds are applied.", "fine"));
-      (b.booking_requests || []).forEach(request=>info.append(n("p",request.kind.replaceAll('_',' ')+" · "+(request.resolved?'Reviewed by the company':'Awaiting admin review')+" · "+request.notes,"request-status")));
+
       form(
         info,
         [
@@ -1075,22 +1079,19 @@
           "Visit rescheduled.",
         ),
     );
-    (b.booking_requests || [])
-      .filter((r) => !r.resolved)
-      .forEach((r) => {
-        manage.append(
-          n("p", r.kind + ": " + r.notes),
-          btn(
-            "Mark request resolved",
-            () =>
-              act(
-                () => action(b, "resolve_request", { request_id: r.id }),
-                "Request resolved.",
-              ),
-            "text-btn",
-          ),
-        );
-      });
+    (b.booking_requests || []).filter(r=>!r.resolved).forEach(r=>{
+      const panel=section((r.kind==='cancel'?'Cancellation':'Rescheduling')+' request');
+      panel.append(n('p',r.notes),n('p','Approving or declining this request does not add fees or change recorded payments.','fine'));
+      const outcome=choice([['','Choose outcome'],['approved','Approve request'],['declined','Decline request']],''),notes=n('textarea'),date=input('date',b.visit_date),arrival=choice([['','Choose date']],'');
+      outcome.required=true;notes.required=true;notes.maxLength=1000;
+      let request=0;
+      const load=async()=>{const token=++request;arrival.disabled=true;try{const days=await L.api('availability',{query:{start:date.value,days:1}});if(token!==request)return;arrival.replaceChildren();(days[0]?.slots || []).filter(slot=>slot.available || date.value===b.visit_date && slot.id===b.arrival).forEach(slot=>arrival.append(Object.assign(n('option',arrivalName(slot.id)),{value:slot.id})));if(!arrival.options.length)arrival.append(Object.assign(n('option','No available blocks'),{value:''}));}catch(e){msg(e.message);}finally{if(token===request)arrival.disabled=false;}};
+      const fields=[['Decision',outcome],['Review notes for customer',notes]];
+      if(r.kind==='reschedule'){fields.push(['Approved visit date',date],['Approved arrival block',arrival]);date.onchange=load;load();}
+      const f=form(panel,fields,'Save request decision',()=>act(()=>{if(outcome.value==='approved' && r.kind==='reschedule' && (arrival.disabled || !arrival.value))throw Error('Choose an available arrival block.');return action(b,'review_request',{request_id:r.id,decision:outcome.value,notes:notes.value,date:date.value,arrival:arrival.value});},'Request decision saved. No automatic fees or refunds applied.'));
+      if(r.kind==='reschedule'){const update=()=>{date.closest('label').hidden=arrival.closest('label').hidden=outcome.value!=='approved';};outcome.onchange=update;update();}
+      manage.append(panel);
+    });
     root.append(manage);
     const review = section("Review & final quote"),
       notes = n("textarea"),
