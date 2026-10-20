@@ -304,6 +304,11 @@ function createHandler({
           attention: await rpc("api_owner_attention", {}),
         });
       }
+      if(route==='customer-attention' && req.method==='GET')return reply(200,await rpc('api_customer_attention',{}));
+      if(route==='customer-attention-read' && req.method==='POST'){
+        if(!Array.isArray(body.ids) || body.ids.length>100 || !body.ids.every(uuid))throw new HttpError(400,'Valid notice IDs required');
+        return reply(200,await rpc('api_customer_attention',{p_read_ids:body.ids}));
+      }
       if(route==='attention-read' && req.method==='POST'){
         if(!owner)throw new HttpError(403,'Owner access required');
         if(!Array.isArray(body.ids) || body.ids.length>100 || !body.ids.every(uuid))throw new HttpError(400,'Valid notice IDs required');

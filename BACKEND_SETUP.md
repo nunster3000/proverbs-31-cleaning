@@ -199,3 +199,12 @@ Applied `006_admin_attention.sql` to hosted Supabase. Private read receipts have
 Attention counts appear above the admin content and on desktop/mobile Bookings, Walkthroughs, and Payments navigation. Tapping a category opens its linked booking list. The API adds an authenticated single-booking read using existing RLS and an owner-only notice receipt endpoint; authentication remains disabled in production.
 
 Validation: 49 automated tests plus local SQL-backed mobile checks for 3/1/1 counts, persistent clearing of read booking/approval notices after reload, and walkthrough review resolving the remaining upload badge. No production customer test data was created.
+
+
+## Customer attention badges
+
+Applied `007_customer_attention.sql` to hosted Supabase. Verified account customers receive only their own walkthrough-review notices, pending price approvals, and issued unpaid final balances. Private review read receipts have RLS enabled and no direct client grants. Opening a booking clears only its current walkthrough-review notice; a newer review creates a new notice. Approval and final payment badges are derived from unresolved booking state and cannot be dismissed by reading. Starting estimates and unissued balances never count as final payments due. Payment badges clear only when the issued remaining balance reaches zero.
+
+Customer desktop/mobile navigation and the Your care updates panel use the existing eight-second automatic refresh system. Notification lists link directly to their authorized booking, even outside the current page. No email delivery or online payment processing is enabled.
+
+Validation: 50 automated tests covering cross-account isolation, guest rejection, persistent review reads, nondismissible approval/payment tasks, and paid-balance clearing; isolated mobile browser tests for review clearing after reload and actual customer price acceptance clearing its badge while an unrelated issued balance remains due.

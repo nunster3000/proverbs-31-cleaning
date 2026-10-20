@@ -63,6 +63,7 @@ create table storage.objects(id uuid primary key default gen_random_uuid(),bucke
   await db.exec(fs.readFileSync("cinematic-preview/supabase/migrations/004_booking_milestones.sql", "utf8"));
   await db.exec(fs.readFileSync("cinematic-preview/supabase/migrations/005_late_completion_evidence.sql", "utf8"));
   await db.exec(fs.readFileSync("cinematic-preview/supabase/migrations/006_admin_attention.sql", "utf8"));
+  await db.exec(fs.readFileSync("cinematic-preview/supabase/migrations/007_customer_attention.sql", "utf8"));
   await db.query("insert into private.owner_accounts values($1)", [ids.owner]);
 })();
 async function rpc(name, args) {
@@ -643,4 +644,19 @@ test('admin badges persist reads, count review work per booking, and reject cust
  assert.equal((await rpc('api_owner_attention',[[]])).items.filter(i=>i.booking_id===existing && i.kind!=='walkthrough').length,0);
  await rpc('api_booking_action',[existing,'review',JSON.stringify({notes:'Reviewed badge test upload.'}),null]);assert.equal((await rpc('api_owner_attention',[[]])).items.filter(i=>i.booking_id===existing && i.kind==='walkthrough').length,0);
  await db.exec('reset role');await make('accept_quote');await login('owner');assert.ok((await rpc('api_owner_attention',[[]])).items.some(i=>i.booking_id===existing && i.kind==='approval'));
+});
+
+test('customer notices are private, review reads persist, and approval/payment tasks cannot be dismissed',async()=>{
+ await ready;await db.exec('reset role');
+ const b=(await db.query('select b.id from public.bookings b join public.customers c on c.id=b.customer_id where c.auth_user_id=$1 limit 1',[ids.alice])).rows[0];
+ await db.query("update public.bookings set status='confirmed',reviewed=true,quote_status='awaiting_approval',final_cents=20000,deposit_paid_cents=5000,final_paid_cents=0,invoice_issued=false where id=$1",[b.id]);
+ const event=(await db.query("insert into public.audit_events(actor_id,booking_id,action) values($1,$2,'review') returning id",[ids.owner,b.id])).rows[0].id;
+ await login('alice',true);await assert.rejects(()=>rpc('api_customer_attention',[[]]),/Verified account/);
+ await login('bob');assert.equal((await rpc('api_customer_attention',[[event]])).items.some(i=>i.booking_id===b.id),false);
+ await login('alice');let notices=await rpc('api_customer_attention',[[]]);assert.ok(notices.items.some(i=>i.id===event && i.kind==='review'));assert.ok(notices.items.some(i=>i.booking_id===b.id && i.kind==='approval'));assert.equal(notices.items.some(i=>i.booking_id===b.id && i.kind==='payment'),false);
+ notices=await rpc('api_customer_attention',[[event,b.id]]);assert.equal(notices.items.some(i=>i.id===event && i.kind==='review'),false);assert.ok(notices.items.some(i=>i.booking_id===b.id && i.kind==='approval'));
+ assert.equal((await rpc('api_customer_attention',[[]])).items.some(i=>i.id===event),false);
+ await db.exec('reset role');await db.query("update public.bookings set status='completed',quote_status='accepted',invoice_issued=true where id=$1",[b.id]);await login('alice');
+ notices=await rpc('api_customer_attention',[[b.id]]);assert.equal(notices.items.some(i=>i.booking_id===b.id && i.kind==='approval'),false);assert.equal(notices.items.find(i=>i.booking_id===b.id && i.kind==='payment').amount_cents,15000);
+ await db.exec('reset role');await db.query('update public.bookings set final_paid_cents=15000 where id=$1',[b.id]);await login('alice');assert.equal((await rpc('api_customer_attention',[[]])).items.some(i=>i.booking_id===b.id && i.kind==='payment'),false);
 });

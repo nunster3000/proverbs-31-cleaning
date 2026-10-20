@@ -91,7 +91,7 @@
         ...(state.settings?.windows || []),
         ...(state.days || []).flatMap((d) => d.windows),
       ].forEach((id) => (names[id] = P31Windows.label(id)));
-    }
+    }else state.attention=await L.api("customer-attention");
     render();
     } finally {reloading--;recordsEpoch++;}
   }
@@ -101,25 +101,27 @@
       fetchUpdates:async()=>{
         if(mutations || reloading)return null;
         const epoch=recordsEpoch,currentPage=page,currentView=view;
-        const [rows,ownerState,people,catalog]=await Promise.all([
+        const [rows,ownerState,people,catalog,customerNotices]=await Promise.all([
           L.api('bookings',{query:{page:currentPage}}),
           me.role==='owner'?L.api('owner-state'):null,
           me.role==='owner'?L.api('customers',{query:{page:currentPage}}):null,
-          me.role==='owner' && currentView==='Pricing'?L.api('catalog'):null
+          me.role==='owner' && currentView==='Pricing'?L.api('catalog'):null,
+          me.role==='customer'?L.api('customer-attention'):null
         ]);
-        return {rows,ownerState,people,catalog,epoch,currentPage,currentView};
+        return {rows,ownerState,people,catalog,customerNotices,epoch,currentPage,currentView};
       },
       apply:packet=>{
         if(!packet || mutations || reloading || packet.epoch!==recordsEpoch || packet.currentPage!==page || packet.currentView!==view)return;
         const previous=records;
         const changes=P31Workflow.syncChanges({records,state,customers,pricing},packet);
-        if(!changes.any)return;
+        if(!changes.any && JSON.stringify(state.attention)===JSON.stringify(packet.customerNotices ?? state.attention))return;
         records=packet.rows;
         if(me.role==='owner'){
           state=packet.ownerState;customers=packet.people;if(packet.catalog)pricing=packet.catalog;
           updateAttention();
           [...(state.settings?.windows || []),...(state.days || []).flatMap(d=>d.windows)].forEach(id=>names[id]=P31Windows.label(id));
         }
+        if(me.role==='customer'){state.attention=packet.customerNotices;updateAttention();}
         document.querySelectorAll('[data-booking-progress]').forEach(node=>{const b=records.find(row=>row.id===node.dataset.bookingProgress);if(b)node.replaceWith(progress(b));});
         document.querySelectorAll('[data-booking-status]').forEach(node=>{const b=records.find(row=>row.id===node.dataset.bookingStatus);if(b)node.textContent=(node.closest('#workspace-detail')?'Status: ':'')+(P31Workflow.milestone(b)<0 && b.status!=='cancelled'?'Awaiting deposit':statusLabel(b.status));});
         const dialog=$('#workspace-dialog');
@@ -157,11 +159,14 @@
     window.addEventListener('pagehide',()=>autoSync.stop());window.addEventListener('pageshow',event=>{if(event.persisted)location.reload();});
     $('#workspace-dialog').addEventListener('close',()=>{if(!workspaceDirty && view!=='My Profile')render();});
   }
-  const attentionLabels={booking:'New bookings',walkthrough:'Walkthroughs to review',approval:'Customer price approvals'};
+  const ownerAttentionLabels={booking:'New bookings',walkthrough:'Walkthroughs to review',approval:'Customer price approvals'};
+  const getAttentionLabels=()=>me.role==='owner'?ownerAttentionLabels:{review:'Walkthrough reviewed',approval:'Price needs approval',payment:'Final payment due'};
   function updateAttention(){
-    if(me?.role!=='owner')return;
+    if(!me)return;
+    const attentionLabels=getAttentionLabels();
     const attention=state.attention || {counts:{},items:[]},root=$('#admin-attention');root.hidden=false;
-    root.replaceChildren(n('p','Needs your attention','eyebrow'));
+    root.setAttribute('aria-label',me.role==='owner'?'Needs your attention':'Your care updates');
+    root.replaceChildren(n('p',me.role==='owner'?'Needs your attention':'Your care updates','eyebrow'));
     const tools=n('div',undefined,'attention-counts');
     for(const [kind,title] of Object.entries(attentionLabels)){
       const count=Number(attention.counts[kind] || 0),b=btn('',()=>showAttention(kind),'attention-pill');
@@ -169,27 +174,28 @@
     }
     root.append(tools);
     for(const node of document.querySelectorAll('#workspace-nav button,#mobile-workspace-nav button')){
-      const name=node.dataset.view || node.dataset.mobileView,kind={Bookings:'booking',Walkthroughs:'walkthrough',Payments:'approval'}[name],count=Number(attention.counts[kind] || 0);
+      const name=node.dataset.view || node.dataset.mobileView,kind=(me.role==='owner'?{Bookings:'booking',Walkthroughs:'walkthrough',Payments:'approval'}:{Bookings:'approval',Walkthroughs:'review',Payments:'payment'})[name],count=Number(attention.counts[kind] || 0);
       node.querySelector('.notification-badge')?.remove();
       if(kind && count){const badge=n('span',count>99?'99+':String(count),'notification-badge');badge.setAttribute('aria-hidden','true');node.append(badge);}
       node.setAttribute('aria-label',name+(kind && count?' · '+count+' '+attentionLabels[kind].toLowerCase():''));
     }
   }
   function showAttention(kind){
+    const attentionLabels=getAttentionLabels();
     const win=n('dialog',undefined,'attention-sheet');win.setAttribute('aria-label',attentionLabels[kind]);
     const head=n('div',undefined,'dialog-header');head.append(n('h2',attentionLabels[kind]),btn('×',()=>win.close(),'close'));win.append(head);
-    win.append(n('p',kind==='walkthrough'?'Walkthroughs stay here until their review is saved.':'Opening a booking clears its current new-item badge. Future updates can create a new badge.','fine'));
+    win.append(n('p',me.role==='owner'?(kind==='walkthrough'?'Walkthroughs stay here until their review is saved.':'Opening a booking clears its current new-item badge. Future updates can create a new badge.'):(kind==='review'?'Opening the booking clears this review notice.':kind==='approval'?'Your price stays flagged until you approve the current reviewed total.':'Your final balance stays flagged until payment is recorded. Contact the company to arrange payment.'),'fine'));
     const items=(state.attention?.items || []).filter(item=>item.kind===kind);
     if(!items.length)win.append(n('p','You’re all caught up.'));
-    items.forEach(item=>{const row=n('div',undefined,'list-row');row.append(n('p',item.customer_name+' · '+(labels[item.service] || '')+' · '+item.visit_date),btn('Open booking',async()=>{const b=await L.api('booking',{query:{id:item.booking_id}});if(!records.some(row=>row.id===b.id))records.push(b);win.close();detail(b);}));win.append(row);});
+    items.forEach(item=>{const row=n('div',undefined,'list-row');row.append(n('p',(item.customer_name?item.customer_name+' · ':'')+(labels[item.service] || '')+' · '+item.visit_date+(item.amount_cents!==null && item.amount_cents!==undefined?' · '+money(item.amount_cents):'')),btn('Open booking',async()=>{const b=await L.api('booking',{query:{id:item.booking_id}});const index=records.findIndex(row=>row.id===b.id);if(index<0)records.push(b);else records[index]=b;win.close();detail(b);}));win.append(row);});
     if((state.attention?.counts[kind] || 0)>items.length)win.append(n('p','Showing the latest 100 notices. More appear as you review these.','fine'));
     win.addEventListener('close',()=>win.remove(),{once:true});document.body.append(win);win.showModal();
   }
   async function readBookingAttention(id){
-    const ids=(state.attention?.items || []).filter(item=>item.booking_id===id && item.kind!=='walkthrough').map(item=>item.id);
+    const ids=(state.attention?.items || []).filter(item=>item.booking_id===id && (me.role==='owner'?item.kind!=='walkthrough':item.kind==='review')).map(item=>item.id);
     if(!ids.length)return;
     recordsEpoch++;
-    try{state.attention=await L.api('attention-read',{method:'POST',data:{ids}});updateAttention();}
+    try{state.attention=await L.api(me.role==='owner'?'attention-read':'customer-attention-read',{method:'POST',data:{ids}});updateAttention();}
     catch{msg('Unable to clear the attention badge. It will remain until the next successful review.');}
     finally{recordsEpoch++;}
   }
@@ -803,7 +809,7 @@
     clearPreviews();
     $("#booking-update-notice").hidden=true;dialogDirty=false;
     activeId = b.id;
-    if(me.role==='owner')readBookingAttention(b.id);
+    readBookingAttention(b.id);
     const root = $("#workspace-detail");
     root.replaceChildren();
     const info = section(b.customers?.name || "Your cleaning");
