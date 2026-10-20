@@ -37,3 +37,22 @@ test('apartment move cleaning uses standard size-based starting prices', () => {
   assert.equal(P.quote({space:2,service:'Apartment Cleaning'}).base,85);
   assert.equal(P.quote({space:3,service:'Apartment Cleaning'}).base,110);
 });
+
+test('backend catalog updates all displayed prices atomically without changing inclusion rules', async () => {
+  const ctx={window:{}};vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync('cinematic-preview/assets/service-catalog.js','utf8'),ctx);
+  const p=ctx.window.P31;
+  const catalog={
+    spaces:p.spaces.map((s,id)=>({id,label:s.label,base_cents:(s.price+10)*100,suite:!!s.suite})),
+    services:['standard','deep','apartment','airbnb'].map((id,i)=>({id,label:p.services[i],upgrade_cents:id==='deep'?12000:0})),
+    addons:p.addons.map(a=>({id:a.id,label:a.label,cents:(a.price+5)*100,per_load:a.id==='laundry'}))
+  };
+  p.applyCatalog(catalog);
+  const q=p.quote({space:3,service:'Deep Cleaning',focus:['Kitchen'],extras:{laundry:2,oven:true}});
+  assert.equal(q.base,240);assert.equal(q.total,290);assert.equal(q.deposit,120);
+  const invalid=JSON.parse(JSON.stringify(catalog));invalid.addons[0].cents=-1;invalid.spaces[3].base_cents=99900;
+  assert.throws(()=>p.applyCatalog(invalid),/invalid/);assert.equal(p.spaces[3].price,120);
+  assert.throws(()=>p.applyCatalog({...catalog,spaces:catalog.spaces.slice(1)}),/unavailable/);
+  ctx.window.P31Live={init:async()=>({enabled:true}),api:async()=>{throw new Error('Connection unavailable')}};
+  await assert.rejects(()=>p.loadCatalog(),/Connection unavailable/);
+});

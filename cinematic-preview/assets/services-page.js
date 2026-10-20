@@ -1,3 +1,14 @@
+(async () => {
+const pricingNote = document.querySelector('#type-note');
+try {
+  await P31.loadCatalog();
+} catch {
+  pricingNote.setAttribute('role', 'alert');
+  pricingNote.textContent = 'Service pricing is temporarily unavailable. Please contact the company for a starting estimate.';
+  document.querySelectorAll('.service .price,.extra-card .amount').forEach(node => node.hidden = true);
+  document.querySelectorAll('.service [data-scope]').forEach(link => { link.href = 'contact.html'; link.textContent = 'Ask about this service'; });
+  return;
+}
 const params = new URLSearchParams(location.search);
 let type = params.get('type');
 if (type === 'Move-In / Move-Out') type = 'Apartment Cleaning';
@@ -26,9 +37,11 @@ function update() {
     const link = card.querySelector('[data-scope]'), id = Number(link.dataset.scope), item = P31.spaces[id];
     card.hidden = (type === 'Airbnb Turnover') !== !!item.suite;
     card.querySelector('h3').textContent = item.label;
-    card.querySelector('.price').textContent = '$' + (item.price + (type === 'Deep Cleaning' ? 100 : 0)) + '*';
+    card.querySelector('.price').textContent = '$' + (item.price + P31.upgrades[type]) + '*';
     link.href = 'care.html?' + new URLSearchParams({space: id, type, mode: mode.value});
   });
 }
 mode.onchange = update;
 update();
+
+})();

@@ -1,5 +1,16 @@
 window.P31LiveCareReady = (async () => {
   const L = P31Live;
+  await P31.loadCatalog();
+  P31.spaces.forEach((space, id) => {
+    scopes[id].label = space.label;
+    scopes[id].price = space.price;
+    const option = document.querySelector('#scope option[value="' + id + '"]');
+    if (option) option.textContent = space.label;
+  });
+  const laundryLabel = document.querySelector('#extra-laundry').closest('label').querySelector('span');
+  laundryLabel.firstChild.nodeValue = P31.addons[0].label + ' · ' + P31.money(P31.addons[0].price) + ' / load';
+  drawScope();
+  refreshPricing();
   const serviceMap = {
     "Standard Cleaning": "standard",
     "Deep Cleaning": "deep",

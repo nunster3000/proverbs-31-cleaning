@@ -128,3 +128,11 @@ Guests receive an anonymous session for submitting a request; they do not get a 
 `sign-in.html` is the single passwordless entry point for customers and administrators. Legacy `account.html`, `admin.html`, and `final-payment.html` routes forward to the backend workspace, which sends signed-out visitors to the shared portal. `/api/app?route=me` determines the role using the verified session and private owner table. URL parameters and browser storage cannot grant owner access.
 
 Production builds exclude the retired demo store, dashboards, browser media store, and demo bridges. The planner no longer auto-types fictional contact details or simulates account verification or payment. Missing backend configuration fails closed on every deployment. Public catalog copy and illustrative floor plans remain; transactional prices and calendar availability come from the backend.
+
+## Owner pricing controls
+
+Apply `cinematic-preview/supabase/migrations/002_owner_pricing.sql` after the initial schema. This adds `api_owner_price` for authenticated owners only; customers retain read-only catalog access. The dashboard's Pricing tab edits property/suite starting prices, the Deep Cleaning adjustment, and add-on amounts in USD. Each change records the previous/new cents and actor in the audit log. Stale edits are rejected, preventing one open dashboard from overwriting another owner's later change. Existing booking quote snapshots, reviewed balances, and payment records are preserved.
+
+Connected Services and Plan My Care load the database catalog. The manual-booking form loads the same catalog. The Services page retains the approved published catalog only during unconfigured prelaunch; after connection, catalog errors hide the prices and direct customers to contact the company. The backend always calculates final booking-request estimates. Manual arrival blocks stay empty until availability succeeds; older responses cannot overwrite a newer date selection.
+
+Resend setup is deferred at the user's request. No email sender or Vercel Supabase credentials have been installed as part of this pricing change. The pricing tab requires a real verified owner session after those connections are ready.

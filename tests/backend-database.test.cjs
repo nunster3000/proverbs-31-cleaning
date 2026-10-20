@@ -58,6 +58,7 @@ create table storage.objects(id uuid primary key default gen_random_uuid(),bucke
       "utf8",
     ),
   );
+  await db.exec(fs.readFileSync("cinematic-preview/supabase/migrations/002_owner_pricing.sql", "utf8"));
   await db.query("insert into private.owner_accounts values($1)", [ids.owner]);
 })();
 async function rpc(name, args) {
@@ -539,4 +540,27 @@ test("date-specific 2/3-hour openings control customer availability and preserve
   );
   await save([]);
   assert.deepEqual((await rpc("api_availability", [date, 1]))[0].slots, []);
+});
+
+
+test("only owners can change catalog prices, stale edits are rejected, and saved bookings remain unchanged", async () => {
+  await ready;
+  await login("alice");
+  await assert.rejects(rpc("api_owner_price", ["space", "3", 12500, 11000]), /Owner access/);
+  await login("owner");
+  const before = (await db.query("select quote_snapshot from public.bookings where id=$1", [booking.id])).rows[0].quote_snapshot;
+  await rpc("api_owner_price", ["space", "3", 12500, 11000]);
+  await rpc("api_owner_price", ["deep", "deep", 12000, 10000]);
+  await rpc("api_owner_price", ["addon", "laundry", 2500, 2000]);
+  const quote = await rpc("api_quote", ["deep", 3, '["Kitchen"]', '{"laundry":2}']);
+  assert.equal(quote.base_cents,24500);assert.equal(quote.total_cents,29500);assert.equal(quote.deposit_cents,12250);
+  await assert.rejects(rpc("api_owner_price", ["space", "3", 13000, 11000]), /changed since/);
+  await assert.rejects(rpc("api_owner_price", ["addon", "laundry", -1, 2500]), /valid price/);
+  await assert.rejects(rpc("api_owner_price", ["space", "3", 0, 12500]), /greater than zero/);
+  const after = (await db.query("select quote_snapshot from public.bookings where id=$1", [booking.id])).rows[0].quote_snapshot;
+  assert.deepEqual(after,before);
+  const events = (await db.query("select details from public.audit_events where action='pricing_changed'")).rows;
+  assert.equal(events.length,3);assert.equal(events[0].details.old_cents,11000);
+  await login("alice");
+  await assert.rejects(db.query("update public.service_spaces set base_cents=1 where id=3"), /permission denied/);
 });

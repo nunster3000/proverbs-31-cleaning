@@ -8,6 +8,7 @@
     view = "Bookings",
     page = 0,
     activeId,
+    pricing = null,
     calendarDate = new Date().toLocaleDateString("en-CA", {
       timeZone: "America/New_York",
     });
@@ -71,6 +72,7 @@
     records = await L.api("bookings", { query: { page } });
     if (me.role === "owner") {
       state = await L.api("owner-state");
+      if (view === "Pricing") pricing = await L.api("catalog");
       customers = await L.api("customers", { query: { page } });
       [
         ...(state.settings?.windows || []),
@@ -504,6 +506,34 @@
         c.append(p);
       });
       root.append(c);
+    } else if (view === "Pricing") {
+      root.append(n("p", "Update starting prices for new quotes and bookings. Existing bookings keep their saved price; adjust those individually after walkthrough review.", "fine"));
+      if (!pricing) {
+        root.append(btn("Load pricing", () => act(async () => { pricing = await L.api("catalog"); })));
+        return;
+      }
+      const groups = [
+        ["Home and guest-suite starting prices", "space", pricing.spaces, "base_cents"],
+        ["Deep Cleaning adjustment", "deep", pricing.services.filter(item => item.id === "deep"), "upgrade_cents"],
+        ["Optional additions", "addon", pricing.addons, "cents"],
+      ];
+      groups.forEach(([title, kind, rows, key]) => {
+        const box = section(title);
+        if (kind === "deep") box.append(n("p", "Added to the selected home's Standard Cleaning price. Customers see the combined starting price.", "fine"));
+        rows.forEach(item => {
+          const amount = input("number", (item[key] / 100).toFixed(2));
+          amount.min = kind === "deep" ? "0" : "0.01";
+          amount.max = "10000"; amount.step = "0.01"; amount.required = true;
+          const title = item.label + (item.per_load ? " · per load" : "") + " (USD)";
+          form(box, [[title, amount]], "Save starting price", async () => {
+            const cents = Math.round(Number(amount.value) * 100);
+            await act(async () => {
+              await L.api("pricing", {method:"POST", data:{kind,id:String(item.id),cents,expected_cents:item[key]}});
+            }, "Starting price saved. Existing bookings were not changed.");
+          });
+        });
+        root.append(box);
+      });
     } else if (view === "Availability") {
       const c = section("Working days and arrival windows"),
         days = n("fieldset"),
@@ -1049,6 +1079,12 @@
     $("#workspace-dialog").showModal();
   }
   async function manual() {
+    let catalog;
+    try { catalog = await L.api("catalog"); }
+    catch (error) { msg(error.message); return; }
+    const spaceChoices = service => catalog.spaces
+      .filter(space => (service === "airbnb") === space.suite)
+      .map(space => [space.id, space.label + " · from " + money(space.base_cents + (catalog.services.find(item => item.id === service)?.upgrade_cents || 0)) + "*"]);
     const root = $("#workspace-detail");
     root.replaceChildren();
     activeId = null;
@@ -1057,18 +1093,8 @@
       email = input("email"),
       phone = input("tel"),
       address = input(),
-      service = choice(Object.entries(labels), "standard"),
-      space = choice(
-        [
-          [3, "1 Bedroom / 1 Bathroom"],
-          [2, "Studio"],
-          [4, "2 Bedrooms"],
-          [5, "3 Bedrooms"],
-          [6, "4 Bedrooms"],
-          [7, "Large / Entire Home"],
-        ],
-        "3",
-      ),
+      service = choice(catalog.services.map(item => [item.id, item.label]), "standard"),
+      space = choice(spaceChoices("standard"), "3"),
       mode = choice(
         [
           ["Move-In", "Move-In"],
@@ -1077,12 +1103,17 @@
         "Move-In",
       ),
       date = input("date"),
-      arrival = choice(Object.entries(names), "morning");
+      arrival = choice([["", "Choose a date first"]], "");
+    let availabilityRequest = 0;
     date.onchange = async () => {
+      const request = ++availabilityRequest;
+      arrival.replaceChildren(Object.assign(n("option", "Checking availability…"), { value: "" }));
+      arrival.disabled = true;
       try {
         const rows = await L.api("availability", {
           query: { start: date.value, days: 1 },
         });
+        if (request !== availabilityRequest) return;
         arrival.replaceChildren();
         (rows[0]?.slots || [])
           .filter((s) => s.available)
@@ -1097,27 +1128,18 @@
           arrival.append(o);
         }
       } catch (e) {
+        if (request !== availabilityRequest) return;
+        arrival.replaceChildren(Object.assign(n("option", "Availability unavailable—choose the date again"), { value: "" }));
         msg(e.message);
+      } finally {
+        if (request === availabilityRequest) arrival.disabled = false;
       }
     };
     arrival.required = true;
     [name, email, address, date].forEach((i) => (i.required = true));
     service.onchange = () => {
       space.replaceChildren();
-      const vals =
-        service.value === "airbnb"
-          ? [
-              [0, "King guest suite"],
-              [1, "Queen guest suite"],
-            ]
-          : [
-              [3, "1 Bedroom / 1 Bathroom"],
-              [2, "Studio"],
-              [4, "2 Bedrooms"],
-              [5, "3 Bedrooms"],
-              [6, "4 Bedrooms"],
-              [7, "Large / Entire Home"],
-            ];
+      const vals = spaceChoices(service.value);
       vals.forEach(([id, text]) => {
         const o = n("option", text);
         o.value = id;
@@ -1158,6 +1180,7 @@
       "Save booking",
       () =>
         act(async () => {
+          if (arrival.disabled || !arrival.value) throw new Error("Choose a confirmed available arrival block first.");
           await L.api("bookings", {
             method: "POST",
             data: {
@@ -1239,6 +1262,7 @@
             "Customers",
             "Proverbs 31 Cal",
             "Availability",
+            "Pricing",
             "Activity",
           ]
         : ["Bookings", "Walkthroughs", "Payments", "My Profile"];
@@ -1246,7 +1270,9 @@
       $("#workspace-nav").append(
         btn(name, () => {
           view = name;
-          render();
+          if (view === "Pricing") {
+            act(async () => { pricing = await L.api("catalog"); }, "Pricing refreshed.");
+          } else render();
         }),
       ),
     );

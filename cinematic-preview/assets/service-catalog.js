@@ -23,6 +23,35 @@ window.P31 = (() => {
     'Apartment Cleaning': 'A fresh start for your next chapter. Our move-in and move-out services provide standard cleaning throughout an empty apartment, preparing the space before your belongings arrive or after they have been removed.',
     'Airbnb Turnover': 'Thoughtful cleaning between guest stays to keep your space welcoming and ready for the next arrival. Includes standard cleaning of your selected guest bedroom and bathroom, with optional laundry service to wash, fold, and hang items as needed.'
   };
+  const upgrades = Object.fromEntries(services.map(name => [name, name === 'Deep Cleaning' ? 100 : 0]));
+  const serviceIds = ['standard', 'deep', 'apartment', 'airbnb'];
+  function applyCatalog(catalog) {
+    const validCents = value => Number.isSafeInteger(value) && value >= 0;
+    if (!catalog || !Array.isArray(catalog.spaces) || !Array.isArray(catalog.services) || !Array.isArray(catalog.addons)) throw new Error('Service pricing is unavailable. Please try again later.');
+    const checked = (rows, ids) => {
+      if (rows.length !== ids.length || new Set(rows.map(row => row.id)).size !== ids.length) throw new Error('Service pricing is unavailable.');
+      return ids.map(id => {
+        const row = rows.find(item => item.id === id);
+        if (!row || typeof row.label !== 'string' || !row.label.trim()) throw new Error('Service pricing is incomplete.');
+        return row;
+      });
+    };
+    const newSpaces = checked(catalog.spaces, spaces.map((_, id) => id));
+    const newServices = checked(catalog.services, serviceIds);
+    const newAddons = checked(catalog.addons, addons.map(item => item.id));
+    if (newSpaces.some((row, id) => !validCents(row.base_cents) || row.base_cents === 0 || row.suite !== (id < 2)) || newServices.some(row => !validCents(row.upgrade_cents)) || newAddons.some(row => !validCents(row.cents) || row.cents === 0 || row.per_load !== (row.id === 'laundry'))) throw new Error('Service pricing is invalid.');
+    // Validate the whole response before replacing any published prices.
+    newSpaces.forEach((row, id) => Object.assign(spaces[id], {label:row.label, price:row.base_cents / 100}));
+    newServices.forEach((row, id) => upgrades[services[id]] = row.upgrade_cents / 100);
+    newAddons.forEach((row, id) => Object.assign(addons[id], {label:row.label, price:row.cents / 100}));
+  }
+  async function loadCatalog() {
+    if (!window.P31Live) throw new Error('Unable to load service pricing.');
+    const config = await window.P31Live.init();
+    if (!config.enabled) return false; // Owner-approved published catalog during prelaunch.
+    applyCatalog(await window.P31Live.api('catalog'));
+    return true;
+  }
   function includedCare(service, { mode = 'Move-In', focus = [] } = {}) {
     const routine = ['Vacuuming, sweeping, and mopping', 'Surface cleaning', 'Bed making', 'Routine kitchen and bathroom cleaning'];
     if (service === 'Deep Cleaning') return [...routine, 'Baseboard and window cleaning', 'Sanitizing and disinfecting', ...(focus.includes('Kitchen') ? ['Refrigerator and stove / oven cleaning included with Kitchen focus'] : [])];
@@ -37,13 +66,13 @@ window.P31 = (() => {
     const deep = service === 'Deep Cleaning';
     const kitchen = deep && focus.includes('Kitchen');
     const included = deep ? ['baseboards', ...(kitchen ? ['fridge', 'oven'] : [])] : [];
-    const base = item.price + (deep ? 100 : 0);
+    const base = item.price + upgrades[service];
     const lines = addons.map(a => {
       const quantity = a.id === 'laundry' ? Math.max(0, Math.min(20, Math.floor(Number(extras.laundry) || 0))) : (extras[a.id] ? 1 : 0);
       return { ...a, quantity, included: included.includes(a.id), amount: included.includes(a.id) ? 0 : quantity * a.price };
     }).filter(a => a.quantity || a.included);
     const addonsTotal = lines.reduce((sum, a) => sum + a.amount, 0);
-    return { base, standardBase: item.price, upgrade: deep ? 100 : 0, included, lines, addonsTotal, total: base + addonsTotal, deposit: base / 2, remaining: base + addonsTotal - base / 2 };
+    return { base, standardBase: item.price, upgrade: upgrades[service], included, lines, addonsTotal, total: base + addonsTotal, deposit: base / 2, remaining: base + addonsTotal - base / 2 };
   }
-  return { services, spaces, addons, descriptions, includedCare, quote, money: n => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n) };
+  return { services, spaces, addons, upgrades, applyCatalog, loadCatalog, descriptions, includedCare, quote, money: n => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n) };
 })();

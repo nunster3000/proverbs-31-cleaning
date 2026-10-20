@@ -295,6 +295,13 @@ function createHandler({
           notes: await read(db.from("owner_notes").select("*")),
         });
       }
+      if (route === "pricing" && req.method === "POST") {
+        if (!owner) throw new HttpError(403, "Owner access required");
+        if (!['space', 'addon', 'deep'].includes(body.kind) || typeof body.id !== 'string' || !Number.isSafeInteger(body.cents) || !Number.isSafeInteger(body.expected_cents))
+          throw new HttpError(400, "Enter a valid pricing change");
+        await rpc("api_owner_price", {p_kind: body.kind, p_id: body.id, p_cents: body.cents, p_expected: body.expected_cents});
+        return reply(200, {saved: true});
+      }
       if (route === "schedule" && req.method === "POST") {
         if (!owner) throw new HttpError(403, "Owner access required");
         return reply(
