@@ -69,10 +69,11 @@ window.P31 = (() => {
     const base = item.price + upgrades[service];
     const lines = addons.map(a => {
       const quantity = a.id === 'laundry' ? Math.max(0, Math.min(20, Math.floor(Number(extras.laundry) || 0))) : (extras[a.id] ? 1 : 0);
-      return { ...a, quantity, included: included.includes(a.id), amount: included.includes(a.id) ? 0 : quantity * a.price };
+      return { ...a, quantity, included: included.includes(a.id), amount: included.includes(a.id) ? 0 : quantity * Math.round(a.price * 100) / 100 };
     }).filter(a => a.quantity || a.included);
     const addonsTotal = lines.reduce((sum, a) => sum + a.amount, 0);
-    return { base, standardBase: item.price, upgrade: upgrades[service], included, lines, addonsTotal, total: base + addonsTotal, deposit: base / 2, remaining: base + addonsTotal - base / 2 };
+    const baseCents=Math.round(base*100),addonCents=Math.round(addonsTotal*100),depositCents=Math.round(baseCents/2);
+    return { base:baseCents/100, standardBase: item.price, upgrade: upgrades[service], included, lines, addonsTotal:addonCents/100, total:(baseCents+addonCents)/100, deposit:depositCents/100, remaining:(baseCents+addonCents-depositCents)/100 };
   }
   return { services, spaces, addons, upgrades, applyCatalog, loadCatalog, descriptions, includedCare, quote, money: n => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n) };
 })();

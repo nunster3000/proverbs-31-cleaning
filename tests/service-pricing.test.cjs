@@ -56,3 +56,10 @@ test('backend catalog updates all displayed prices atomically without changing i
   ctx.window.P31Live={init:async()=>({enabled:true}),api:async()=>{throw new Error('Connection unavailable')}};
   await assert.rejects(()=>p.loadCatalog(),/Connection unavailable/);
 });
+
+test('odd-cent admin prices round deposits once and preserve exact remaining balances',()=>{
+ const ctx={window:{}};vm.runInNewContext(fs.readFileSync('cinematic-preview/assets/service-catalog.js','utf8'),ctx);const p=ctx.window.P31;
+ const catalog={spaces:p.spaces.map((s,id)=>({id,label:s.label,base_cents:Math.round(s.price*100)+(id===3?1:0),suite:!!s.suite})),services:['standard','deep','apartment','airbnb'].map((id,i)=>({id,label:p.services[i],upgrade_cents:id==='deep'?10000:0})),addons:p.addons.map(a=>({id:a.id,label:a.label,cents:Math.round(a.price*100)+1,per_load:a.id==='laundry'}))};p.applyCatalog(catalog);
+ const q=p.quote({space:3,service:'Standard Cleaning',extras:{laundry:3,fridge:true}});
+ assert.equal(q.base,110.01);assert.equal(q.deposit,55.01);assert.equal(q.total,245.05);assert.equal(q.remaining,190.04);assert.equal(Math.round(q.deposit*100)+Math.round(q.remaining*100),Math.round(q.total*100));
+});

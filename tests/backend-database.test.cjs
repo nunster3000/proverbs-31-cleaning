@@ -82,6 +82,22 @@ const day = () => {
   while (d.getDay() === 0) d.setDate(d.getDate() + 1);
   return d.toISOString().slice(0, 10);
 };
+test('complete starting-price matrix agrees with backend for all services, add-ons, laundry and deposits',async()=>{
+ await ready;const vm=require('node:vm'),ctx={window:{}};vm.runInNewContext(fs.readFileSync('cinematic-preview/assets/service-catalog.js','utf8'),ctx);const front=ctx.window.P31;
+ const prices=[6500,5000,8500,11000,14000,17500,22500,25000],labels={standard:'Standard Cleaning',deep:'Deep Cleaning',apartment:'Apartment Cleaning',airbnb:'Airbnb Turnover'};let combinations=0;
+ for(const [service,label]of Object.entries(labels))for(let space=0;space<8;space++){
+  if((service==='airbnb')!==(space<2)){await assert.rejects(()=>rpc('api_quote',[service,space,'[]','{}']),/Invalid service/);continue}
+  for(const focus of [[],['Kitchen']])for(let mask=0;mask<8;mask++)for(const laundry of [0,1,2,20]){
+   const extras={fridge:!!(mask&1),oven:!!(mask&2),baseboards:!!(mask&4),laundry},base=prices[space]+(service==='deep'?10000:0);
+   const extra=laundry*2000+(extras.fridge&&!(service==='deep'&&focus.length)?7500:0)+(extras.oven&&!(service==='deep'&&focus.length)?8500:0)+(extras.baseboards&&service!=='deep'?4500:0);
+   const q=await rpc('api_quote',[service,space,JSON.stringify(focus),JSON.stringify(extras)]),ui=front.quote({space,service:label,focus,extras});
+   assert.equal(q.base_cents,base);assert.equal(q.total_cents,base+extra);assert.equal(q.deposit_cents,Math.round(base/2));
+   assert.equal(Math.round(ui.total*100),q.total_cents);assert.equal(Math.round(ui.deposit*100),q.deposit_cents);assert.equal(Math.round(ui.remaining*100),q.total_cents-q.deposit_cents);combinations++;
+  }
+ }
+ assert.equal(combinations,1280);
+ for(const laundry of [-1,21,1.5,'invalid'])await assert.rejects(()=>rpc('api_quote',['standard',3,'[]',JSON.stringify({laundry})]));
+});
 test("SQL migration applies, pricing is authoritative, and duplicate booking requests are idempotent", async () => {
   await ready;
   await login("alice");
@@ -752,4 +768,25 @@ test('upload quotas and file metadata are enforced by the database, including fa
  await db.exec('reset role');await db.query('update storage.objects set metadata=$2 where name=$1',[f.path,JSON.stringify({size:1024,mimetype:'text/html'})]);await db.exec('set role service_role');await assert.rejects(()=>rpc('api_upload_finish',[f.id,ids.alice]),/does not match/);
  await db.exec('reset role');await db.query('update storage.objects set metadata=$2 where name=$1',[f.path,JSON.stringify({size:1024,mimetype:'video/mp4'})]);await db.exec('set role service_role');assert.equal((await rpc('api_upload_finish',[f.id,ids.alice])).status,'ready');await rpc('api_upload_finish',[f.id,ids.alice]);
  await login('owner');assert.equal((await rpc('api_owner_attention',[[]])).items.filter(i=>i.booking_id===check.id&&i.kind==='walkthrough').length,1);await rpc('api_booking_action',[check.id,'review',JSON.stringify({notes:'Video reviewed. Pricing review notes recorded.'}),null]);assert.equal((await rpc('api_owner_attention',[[]])).items.filter(i=>i.booking_id===check.id&&i.kind==='walkthrough').length,0);
+});
+
+test('every catalog price edit affects new quotes only, preserving saved totals, approval and payments',async()=>{
+ await ready;await login('owner');
+ const spaces=(await db.query('select * from public.service_spaces')).rows,services=(await db.query('select * from public.service_types')).rows,addons=(await db.query('select * from public.service_addons')).rows;
+ const make=async offset=>{const d=new Date();d.setDate(d.getDate()+offset);const date=d.toISOString().slice(0,10);await login('owner');await rpc('api_owner_schedule',['day_windows',JSON.stringify({date,windows:['morning']})]);await login('alice');return(await rpc('api_create_booking',[JSON.stringify({name:'Pricing QA',address:'Local test address',service:'deep',space_id:3,date,arrival:'morning',extras:{fridge:true,oven:true,baseboards:true,laundry:2}}),crypto.randomUUID()]))[0]};
+ const old=await make(190);await db.exec('reset role');await db.query("update public.bookings set final_cents=$2,quote_status='accepted',reviewed=true,revision=2,deposit_paid_cents=$3 where id=$1",[old.id,old.quote_snapshot.total_cents+1500,old.quote_snapshot.deposit_cents]);
+ const saved=(await db.query('select * from public.bookings where id=$1',[old.id])).rows[0];
+ await login('owner');
+ for(const space of spaces)await rpc('api_owner_price',['space',String(space.id),space.base_cents+1001,space.base_cents]);
+ await rpc('api_owner_price',['deep','deep',services.find(s=>s.id==='deep').upgrade_cents+2000,services.find(s=>s.id==='deep').upgrade_cents]);
+ for(const addon of addons)await rpc('api_owner_price',['addon',addon.id,addon.cents+101,addon.cents]);
+ assert.deepEqual((await db.query('select * from public.bookings where id=$1',[old.id])).rows[0],saved);
+ const newQuote=await rpc('api_quote',['deep',3,'[]','{"fridge":true,"oven":true,"baseboards":true,"laundry":2}']);
+ assert.equal(newQuote.base_cents,old.quote_snapshot.base_cents+3001);assert.equal(newQuote.total_cents,old.quote_snapshot.total_cents+3405);assert.equal(newQuote.deposit_cents,Math.round(newQuote.base_cents/2));
+ const ctx={window:{}};require('node:vm').runInNewContext(fs.readFileSync('cinematic-preview/assets/service-catalog.js','utf8'),ctx);
+ ctx.window.P31.applyCatalog({spaces:(await db.query('select * from public.service_spaces')).rows,services:(await db.query('select * from public.service_types')).rows,addons:(await db.query('select * from public.service_addons')).rows});
+ const ui=ctx.window.P31.quote({space:3,service:'Deep Cleaning',extras:{fridge:true,oven:true,baseboards:true,laundry:2}});assert.equal(ui.deposit,newQuote.deposit_cents/100);assert.equal(ui.remaining,(newQuote.total_cents-newQuote.deposit_cents)/100);
+ const newer=await make(191);assert.deepEqual(newer.quote_snapshot,newQuote);assert.equal(newer.deposit_paid_cents,0);
+ // Verify both apartment subcategories use the same current size-based pricing.
+ await login('owner');for(const mode of ['Move-In','Move-Out']){const d=new Date();d.setDate(d.getDate()+(mode==='Move-In'?192:193));const date=d.toISOString().slice(0,10);await rpc('api_owner_schedule',['day_windows',JSON.stringify({date,windows:['morning']})]);const [b]=await rpc('api_create_booking',[JSON.stringify({name:'Apartment QA',email:'apartment@example.com',address:'Local test address',service:'apartment',space_id:3,date,arrival:'morning',apartment_mode:mode}),crypto.randomUUID()]);assert.equal(b.apartment_mode,mode);assert.equal(b.quote_snapshot.base_cents,spaces.find(s=>s.id===3).base_cents+1001)}
 });
