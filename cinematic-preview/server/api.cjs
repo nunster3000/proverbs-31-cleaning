@@ -208,6 +208,10 @@ function createHandler({
           ),
         );
       }
+      if(route==='booking' && req.method==='GET'){
+        const id=url.searchParams.get('id');if(!uuid(id))throw new HttpError(400,'Booking ID required');
+        return reply(200,await read(db.from('bookings').select('*,customers(name,email,phone,address,access_notes,pet_notes),quote_adjustments(*),payment_records(*),booking_requests(*),walkthrough_files(*)').eq('id',id).single()));
+      }
       if (route === "bookings" && req.method === "GET") {
         const page = Math.max(
           0,
@@ -297,7 +301,13 @@ function createHandler({
               .limit(100),
           ),
           notes: await read(db.from("owner_notes").select("*")),
+          attention: await rpc("api_owner_attention", {}),
         });
+      }
+      if(route==='attention-read' && req.method==='POST'){
+        if(!owner)throw new HttpError(403,'Owner access required');
+        if(!Array.isArray(body.ids) || body.ids.length>100 || !body.ids.every(uuid))throw new HttpError(400,'Valid notice IDs required');
+        return reply(200,await rpc('api_owner_attention',{p_read_ids:body.ids}));
       }
       if (route === "notification-preview" && req.method === "GET") {
         if (!owner) throw new HttpError(403, "Owner access required");

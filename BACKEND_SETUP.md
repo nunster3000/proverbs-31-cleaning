@@ -190,3 +190,12 @@ Owner dashboards now use the same visible-tab eight-second refresh controller. E
 Clean booking details update automatically; review drafts and selected uploads stay intact with a notice offering the latest details. Calendar, availability, and pricing edits mark the view dirty and prevent background replacement. Saving edits or explicitly opening the latest details loads the new data. Owner activity does not create or send email. No schema or access-policy changes were required.
 
 Validation: 48 automated tests, plus an isolated SQL-backed admin browser check for a newly created customer booking appearing without refresh; new walkthrough evidence arriving while unsaved review notes remained intact; and customer quote acceptance updating the open, clean admin booking sheet automatically.
+
+
+## Admin attention badges
+
+Applied `006_admin_attention.sql` to hosted Supabase. Private read receipts have RLS enabled and no direct client grants. The owner-only `api_owner_attention` function returns counts across all active bookings, independent of the current bookings page, with up to 100 latest entries per category. New customer bookings and customer price acceptance are cleared by opening the associated booking; reads persist per verified owner. Walkthrough uploads count once per booking and stay flagged until review is saved. Cancelled/completed visits and superseded approval events do not reappear. Manual admin-created bookings and admin-recorded approvals do not create self-notifications.
+
+Attention counts appear above the admin content and on desktop/mobile Bookings, Walkthroughs, and Payments navigation. Tapping a category opens its linked booking list. The API adds an authenticated single-booking read using existing RLS and an owner-only notice receipt endpoint; authentication remains disabled in production.
+
+Validation: 49 automated tests plus local SQL-backed mobile checks for 3/1/1 counts, persistent clearing of read booking/approval notices after reload, and walkthrough review resolving the remaining upload badge. No production customer test data was created.
