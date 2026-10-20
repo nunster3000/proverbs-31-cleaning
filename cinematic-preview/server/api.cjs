@@ -1,4 +1,5 @@
 const { renderEmail } = require("./email-templates.cjs");
+const {handleGuest,secret:guestSecret,digest:guestDigest}=require("./guest-access.cjs");
 const { createClient } = require("@supabase/supabase-js");
 class HttpError extends Error {
   constructor(status, message) {
@@ -62,6 +63,7 @@ function createHandler({
           enabled: configured,
           authEnabled: configured && env.AUTH_ENABLED === "true",
           siteMode: "launch",
+          guestPortalEnabled: configured && env.AUTH_ENABLED === "true" && env.GUEST_PORTAL_ENABLED === "true",
           url: configured ? env.SUPABASE_URL : null,
           key: configured ? env.SUPABASE_ANON_KEY : null,
           turnstileSiteKey: configured ? env.TURNSTILE_SITE_KEY || null : null,
@@ -104,6 +106,7 @@ function createHandler({
       if (typeof body === "string") body = JSON.parse(body);
       if (Buffer.byteLength(JSON.stringify(body)) > (route === "site-photo" ? 3000000 : 65536))
         throw new HttpError(413, "Request too large");
+      if(await handleGuest({req,res,route,body,url,env,clientFactory,reply,fetchFile,signatureMatches}))return;
       const token = String(req.headers.authorization || "").match(
         /^Bearer (.+)$/,
       )?.[1];
@@ -262,6 +265,18 @@ function createHandler({
             p_request: body.request_id || null,
           }),
         );
+      }
+      if(route==='guest-invite' && req.method==='POST'){
+        if(!owner)throw new HttpError(403,'Owner access required');
+        if(env.GUEST_PORTAL_ENABLED!=='true')throw new HttpError(503,'Guest booking access is not enabled yet.');
+        if(!uuid(body.id))throw new HttpError(400,'Booking ID required');
+        const value=guestSecret(),grant=await rpc('api_guest_issue',{p_booking:body.id,p_hash:guestDigest(value)});
+        return reply(201,{...grant,url:new URL('/guest.html',env.APP_ORIGIN).href+'#access='+value});
+      }
+      if(route==='guest-revoke' && req.method==='POST'){
+        if(!owner)throw new HttpError(403,'Owner access required');
+        if(!uuid(body.id))throw new HttpError(400,'Booking ID required');
+        await rpc('api_guest_revoke',{p_booking:body.id});return reply(200,{revoked:true});
       }
       if (route === "customers" && req.method === "GET") {
         if (!owner) throw new HttpError(403, "Owner access required");

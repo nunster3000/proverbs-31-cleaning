@@ -25,6 +25,7 @@
   const nav = document.createElement('nav');
   nav.setAttribute('aria-label', 'Main navigation');
   const links = [['Website Home','index.html'],['Dashboard Home','workspace.html'],['Our Care','index.html#care'],['Services','services.html'],['Contact Us','contact.html'],['About Me','about.html'],['Plan My Care','care.html']];
+  if(document.body.dataset.guestPortal==='true')links[1]=['Your guest booking','guest.html'];
   for (const [label, href] of links) {
     const a = document.createElement('a');
     a.textContent = label;

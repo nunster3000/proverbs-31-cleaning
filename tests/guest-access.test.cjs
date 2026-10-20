@@ -1,0 +1,36 @@
+const {test,after}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
+const localRequire=require('node:module').createRequire(path.resolve('tests/backend-database.test.cjs'));
+const source=fs.readFileSync('tests/backend-database.test.cjs','utf8').split('let booking;')[0],box={require:n=>n==='node:test'?{test(){},after(){}}:localRequire(n),module:{exports:{}},Blob,WebAssembly,console};vm.runInNewContext(source+'\nmodule.exports={db,ready,login,rpc};',box);const{db,ready,login,rpc}=box.module.exports;after(()=>db.close());
+async function service(){await db.exec('reset role');await db.query("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({role:'service_role'})]);await db.exec('set role service_role');}
+test('guest links are single-use, scoped, revocable and support verified uploads, price approval and access signing without impersonating an account',async()=>{
+ await ready;await db.exec('reset role');for(const name of ['011_access_authorization','012_access_table_grants','013_guest_booking_access','014_guest_receipt_access'])await db.exec(fs.readFileSync('cinematic-preview/supabase/migrations/'+name+'.sql','utf8'));
+ await login('alice');const day=new Date();day.setDate(day.getDate()+12);while(day.getDay()===0)day.setDate(day.getDate()+1);
+ const payload={name:'Guest QA',email:'guest@example.com',address:'123 Example Lane',service:'standard',space_id:3,date:day.toISOString().slice(0,10),arrival:'morning'};
+ const b=(await rpc('api_create_booking',[JSON.stringify(payload),'44444444-4444-4444-8444-444444444444']))[0];
+ await db.exec('reset role');await db.query('update public.customers set account_enabled=false where id=$1',[b.customer_id]);
+ await login('owner');const form=await rpc('api_publish_access_form',['TEST ONLY permission','Disposable guest authorization wording for the isolated test database only.',null]);
+ const first=await rpc('api_guest_issue',[b.id,'1'.repeat(64)]);assert.equal(first.recipient,'alice@example.com');
+ await login('bob');await assert.rejects(()=>rpc('api_guest_issue',[b.id,'2'.repeat(64)]),/Owner/);await assert.rejects(()=>rpc('api_guest_exchange',['1'.repeat(64),'3'.repeat(64)]),/permission denied/);
+ await service();await assert.rejects(()=>rpc('api_guest_exchange',['0'.repeat(64),'3'.repeat(64)]),/expired/);await rpc('api_guest_exchange',['1'.repeat(64),'3'.repeat(64)]);await assert.rejects(()=>rpc('api_guest_exchange',['1'.repeat(64),'4'.repeat(64)]),/expired/);
+ let view=await rpc('api_guest_booking',['3'.repeat(64),'view','{}']);assert.equal(view.booking.id,b.id);assert.equal(view.booking.owner_notes,undefined);assert.equal(view.booking.creator_id,undefined);
+ await assert.rejects(()=>rpc('api_guest_booking',['3'.repeat(64),'status','{}']),/unavailable/);
+ await assert.rejects(()=>rpc('api_guest_booking',['3'.repeat(64),'reserve',JSON.stringify({filename:'room.jpg',mime:'image/jpeg',bytes:20971521,room:'Kitchen'})]),/check constraint/);
+ const file=await rpc('api_guest_booking',['3'.repeat(64),'reserve',JSON.stringify({filename:'room.jpg',mime:'image/jpeg',bytes:4,room:'Kitchen',purpose:'completion'})]);assert.equal(file.uploader_id,null);assert.equal(file.guest_access_id,first.id);assert.equal(file.purpose,'walkthrough');
+ await assert.rejects(()=>rpc('api_guest_booking',['3'.repeat(64),'pending_file',JSON.stringify({id:'99999999-9999-4999-8999-999999999999'})]),/unavailable/);
+ await assert.rejects(()=>rpc('api_guest_booking',['3'.repeat(64),'finish',JSON.stringify({id:file.id})]),/reservation/);
+ await db.exec('reset role');await db.query("insert into storage.objects(bucket_id,name,metadata) values('walkthroughs',$1,$2)",[file.path,JSON.stringify({size:4,mimetype:'image/jpeg'})]);await service();await rpc('api_guest_booking',['3'.repeat(64),'finish',JSON.stringify({id:file.id})]);
+ view=await rpc('api_guest_booking',['3'.repeat(64),'view','{}']);assert.equal(view.files[0].status,'ready');assert.equal(view.files[0].path,undefined);
+ await db.exec('reset role');await db.query("update public.bookings set status='confirmed',reviewed=true,walkthrough_approved=true,deposit_paid_cents=5500,final_cents=11000,quote_status='awaiting_approval' where id=$1",[b.id]);await service();
+ await assert.rejects(()=>rpc('api_guest_booking',['3'.repeat(64),'approve',JSON.stringify({revision:0,consent:true})]),/Price changed/);
+ await rpc('api_guest_booking',['3'.repeat(64),'approve',JSON.stringify({revision:view.booking.revision,consent:true,booking_id:'99999999-9999-4999-8999-999999999999'})]);
+ view=await rpc('api_guest_booking',['3'.repeat(64),'view','{}']);assert.equal(view.booking.quote_status,'accepted');
+ await assert.rejects(()=>rpc('api_guest_booking',['3'.repeat(64),'sign',JSON.stringify({form_id:form.id,visit:{},name:'Guest QA',consent:true,electronic:true})]),/changed/);
+ const sign={form_id:form.id,visit:view.visit,name:'Guest QA',consent:true,electronic:true};await rpc('api_guest_booking',['3'.repeat(64),'sign',JSON.stringify(sign)]);
+ view=await rpc('api_guest_booking',['3'.repeat(64),'view','{}']);assert.equal(view.receipt.signer_id,null);assert.equal(view.receipt.guest_access_id,first.id);assert.equal(view.receipt.signer_name,'Guest QA');
+ await login('owner');await rpc('api_booking_action',[b.id,'status',JSON.stringify({status:'on_the_way'}),null]);
+ await rpc('api_booking_action',[b.id,'status',JSON.stringify({status:'in_progress'}),null]);await rpc('api_booking_action',[b.id,'status',JSON.stringify({status:'completed'}),null]);await rpc('api_guest_issue',[b.id,'5'.repeat(64)]);await service();await assert.rejects(()=>rpc('api_guest_booking',['3'.repeat(64),'view','{}']),/expired/);
+ await db.exec('reset role');await db.exec("update private.guest_booking_access set link_expires_at=now()-interval '1 minute' where link_hash=repeat('5',64)");await service();await assert.rejects(()=>rpc('api_guest_exchange',['5'.repeat(64),'6'.repeat(64)]),/expired/);
+ await login('owner');await rpc('api_guest_issue',[b.id,'7'.repeat(64)]);await service();await rpc('api_guest_exchange',['7'.repeat(64),'8'.repeat(64)]);assert.equal((await rpc('api_guest_booking',['8'.repeat(64),'view','{}'])).booking.status,'completed');await assert.rejects(()=>rpc('api_guest_booking',['8'.repeat(64),'reserve','{}']),/closed/);await assert.rejects(()=>rpc('api_guest_booking',['8'.repeat(64),'sign',JSON.stringify(sign)]),/Confirmed/);
+ await db.exec('reset role');await db.query("update public.customers set email='changed@example.com' where id=$1",[b.customer_id]);await service();await assert.rejects(()=>rpc('api_guest_booking',['8'.repeat(64),'view','{}']),/expired/);
+ await service();await rpc('api_guest_close',['8'.repeat(64)]);await assert.rejects(()=>rpc('api_guest_booking',['8'.repeat(64),'view','{}']),/expired/);await login('owner');await rpc('api_guest_revoke',[b.id]);await login('bob');await assert.rejects(()=>db.query('select * from private.guest_booking_access'),/permission denied/);
+});

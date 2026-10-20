@@ -58,6 +58,7 @@ test("disabled backend exposes neither keys nor live services", async () => {
     key: null,
     turnstileSiteKey: null,
     guestEnabled: false,
+    guestPortalEnabled: false,
   });
   assert.match(
     (await call(h, { url: "/api/app?route=bookings" })).value.error,

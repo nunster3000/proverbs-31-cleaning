@@ -139,7 +139,7 @@ window.P31LiveCareReady = (async () => {
   const token = await L.captcha(captcha);
   if (!guest.disabled)
     guest.closest("label").querySelector("small").textContent =
-      "Request as a guest and keep your booking reference. Email delivery is not connected yet.";
+      "Request as a guest. Gabrielle can provide a private booking link for your walkthrough, price approval, and home-access form. Email delivery is not connected yet.";
   document.querySelector("#account-message").textContent =
     "Your email must be verified before an account booking is submitted.";
   document.querySelector("#signin-preview").onclick = async () => {
@@ -161,7 +161,7 @@ window.P31LiveCareReady = (async () => {
         const mode = choice.value;
         document.querySelector("#account-message").textContent =
           mode === "guest"
-            ? "Guest request selected. Keep your booking reference; account management is not available for guests."
+            ? "Guest request selected. Keep your reference; Gabrielle can provide a private link to manage this booking."
             : "Verify your email before submitting an account booking.";
         document.querySelector("#signin-preview").hidden = mode !== "signin";
       }),
@@ -349,7 +349,7 @@ window.P31LiveCareReady = (async () => {
           link.href = "index.html";
           link.textContent = "Return home";
           p.textContent +=
-            " Keep this reference when contacting the company. Guest account management is not enabled.";
+            " Keep this reference. Contact Gabrielle for a private booking link to upload your walkthrough, approve your reviewed price, and sign the home-access form. No email has been sent by this website.";
         }
         const stars = document.createElement("div");
         stars.id = "celebration";

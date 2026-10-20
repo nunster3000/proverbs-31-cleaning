@@ -1257,6 +1257,11 @@
       ),
     );
     root.append(pay);
+    if(!customers.find(c=>c.id===b.customer_id)?.account_enabled){
+      const guest=section("Guest booking access"),notice=n("p","Create a private, one-use link for the booking’s contact email. It expires after 30 minutes and opens an eight-hour browser session. Creating a new link revokes earlier links and sessions. Share it only with this customer.");
+      guest.append(notice);const output=n('div');
+      guest.append(btn('Create private guest link',async()=>{try{const grant=await L.api('guest-invite',{method:'POST',data:{id:b.id}});output.replaceChildren(n('p','Recipient: '+grant.recipient+' · Expires '+new Date(grant.expires_at).toLocaleString()));const value=input('password',grant.url);value.readOnly=true;output.append(label('Private guest link',value),btn('Copy private link',async()=>{try{await navigator.clipboard.writeText(grant.url);notice.textContent='Private link copied. Share only with '+grant.recipient+'.';}catch{value.type='text';value.select();notice.textContent='Select and copy the private link. Share only with '+grant.recipient+'.';}}));}catch(e){notice.textContent=e.message;}}),btn('Revoke guest access',()=>act(async()=>{await L.api('guest-revoke',{method:'POST',data:{id:b.id}});output.replaceChildren();},'Guest links and browser sessions revoked.')),output);root.append(guest);
+    }
     const privateNotes = section("Owner notes"),
       text = n("textarea");
     text.value = state.notes?.find((n) => n.booking_id === b.id)?.notes || "";
