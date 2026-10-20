@@ -13,9 +13,9 @@ window.P31Live = (() => {
       client = window.createSupabaseClient(config.url, config.key, {
         auth: {
           flowType: "pkce",
-          detectSessionInUrl: true,
-          persistSession: true,
-          autoRefreshToken: true,
+          detectSessionInUrl: config.authEnabled,
+          persistSession: config.authEnabled,
+          autoRefreshToken: config.authEnabled,
         },
       });
     }
@@ -85,7 +85,7 @@ window.P31Live = (() => {
   }
   async function signIn(email) {
     await init();
-    if (!client) throw new Error("Email sign-in is not available yet.");
+    if (!client || !config.authEnabled) throw new Error("Email sign-in is not available yet.");
     return new Promise((resolve) => {
       const dialog = document.createElement("dialog");
       dialog.className = "live-auth";

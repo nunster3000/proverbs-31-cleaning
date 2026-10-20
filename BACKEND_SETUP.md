@@ -1,6 +1,6 @@
 # Connect the Supabase backend
 
-The backend code is implemented. The dedicated hosted Supabase project has been initialized; the Vercel credentials and production email sender are still pending, so the website is **not connected yet**. All deployments now use the production-only app; the previous demonstration screens are retired. The business deployment uses `SITE_MODE=launch`: public booking/account routes remain unavailable until the backend is configured, rather than accepting simulated bookings. No demo customers, local photos, or simulated payments are migrated into the real database.
+The backend code is implemented and the dedicated Supabase project is connected to the business Vercel production environment. Public catalog/quote reads are enabled; `AUTH_ENABLED=false` keeps account access and booking submissions unavailable while the email sender is deferred. All deployments now use the production-only app; the previous demonstration screens are retired. The business deployment uses `SITE_MODE=launch`: public booking/account routes remain unavailable until the backend is configured, rather than accepting simulated bookings. No demo customers, local photos, or simulated payments are migrated into the real database.
 
 ## Current hosted setup — October 19, 2026
 
@@ -8,11 +8,11 @@ The backend code is implemented. The dedicated hosted Supabase project has been 
 - Project: `Proverbs 31 Cleaning Services`, reference `mokhzraxcbrmzpvedhxz`, US West (Oregon).
 - Applied `001_backend.sql` successfully through SQL Editor after explicit approval.
 - Verified 15 public tables, all 15 with row-level security enabled, private `walkthroughs` bucket, and zero customer records.
-- Auth email provider and email confirmation enabled; anonymous sign-in disabled.
+- Email provider and new signups disabled on October 20 at the user’s request; anonymous sign-in remains disabled and email confirmation remains required.
 - Saved canonical Site URL and exact `/sign-in.html` redirect for the business domain.
 - No website admin has been assigned yet; the intended administrator must first verify their email.
 - Custom SMTP is not configured. The current dashboard requires custom SMTP before email subjects/templates can be edited; the magic-link/code template is still pending.
-- Vercel backend credentials have not been installed; backend activation and hosted workflow tests remain pending. Keep `BACKEND_ENABLED` disabled until these are complete.
+- Business Vercel Production has the Supabase URL/public key and sensitive server-only secret key, `BACKEND_ENABLED=true`, `AUTH_ENABLED=false`, canonical `APP_ORIGIN`, and guest checkout disabled. Portfolio/preview environments have no production Supabase credentials. Authenticated workflow tests await the email sender and verified accounts.
 - Do not run the initial migration again: this project now contains the schema. Apply future changes as new migrations.
 
 ## 1. Create a business-owned project
@@ -50,7 +50,8 @@ In this project's Vercel settings, add these **server environment variables** fo
 | Variable | Value |
 |---|---|
 | `SITE_MODE` | `launch` (production-only on all deployments) |
-| `BACKEND_ENABLED` | `true` only when the migration and authentication setup are ready |
+| `BACKEND_ENABLED` | `true` on the connected business production deployment |
+| `AUTH_ENABLED` | Keep `false` until the sender and authenticated workflows are ready; this separately gates account access and booking submissions |
 | `SUPABASE_URL` | The project's HTTPS API URL |
 | `SUPABASE_ANON_KEY` | Its public anon/publishable key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Its server-only service-role/secret key |
@@ -136,3 +137,7 @@ Applied `cinematic-preview/supabase/migrations/002_owner_pricing.sql` to the hos
 Connected Services and Plan My Care load the database catalog. The manual-booking form loads the same catalog. The Services page retains the approved published catalog only during unconfigured prelaunch; after connection, catalog errors hide the prices and direct customers to contact the company. The backend always calculates final booking-request estimates. Manual arrival blocks stay empty until availability succeeds; older responses cannot overwrite a newer date selection.
 
 Resend setup is deferred at the user's request. No email sender or Vercel Supabase credentials have been installed as part of this pricing change. The pricing tab requires a real verified owner session after those connections are ready.
+
+## Authentication held for later
+
+The business database connection is enabled independently from authentication. Before opening customer accounts, configure Resend/custom SMTP, enable Supabase's email provider and new signups, finish the link/code templates, then set `AUTH_ENABLED=true` and redeploy. Assign verified owner accounts and test customer isolation and uploads before accepting bookings. Public catalog and quote routes can be checked while account routes return 503. No email service is connected by this database-only setup.

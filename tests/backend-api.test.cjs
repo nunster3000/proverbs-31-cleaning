@@ -6,6 +6,7 @@ const {
 } = require("../cinematic-preview/server/api.cjs");
 const env = {
   BACKEND_ENABLED: "true",
+  AUTH_ENABLED: "true",
   SUPABASE_URL: "https://example.supabase.co",
   SUPABASE_ANON_KEY: "public-key",
   SUPABASE_SERVICE_ROLE_KEY: "never-public-secret",
@@ -51,6 +52,7 @@ test("disabled backend exposes neither keys nor live services", async () => {
   const h = createHandler({ env: { ...env, BACKEND_ENABLED: "false" } });
   assert.deepEqual((await call(h)).value, {
     enabled: false,
+    authEnabled: false,
     siteMode: "launch",
     url: null,
     key: null,
@@ -250,4 +252,14 @@ test("launch preparation never advertises demo mode when Supabase is not connect
   assert.equal(result.enabled, false);
   assert.equal(result.key, null);
   assert.equal(result.url, null);
+});
+
+test("connected database can serve its catalog while authenticated operations remain disabled", async () => {
+ const h=createHandler({env:{...env,AUTH_ENABLED:"false"}});
+ const config=(await call(h)).value;
+ assert.equal(config.enabled,true);assert.equal(config.authEnabled,false);assert.equal(config.guestEnabled,false);
+ for(const route of ['me','bookings','owner-state','pricing']) {
+  const result=await call(h,{url:'/api/app?route='+route,method:'POST',token:'valid'});
+  assert.match(result.value.error,/not enabled yet/);
+ }
 });

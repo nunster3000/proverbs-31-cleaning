@@ -1216,7 +1216,7 @@
   $("#refresh").onclick = () => act(async () => {}, "Workspace refreshed.");
   try {
     const config = await L.init();
-    if (!config.enabled) {
+    if (!config.enabled || !config.authEnabled) {
       location.replace("sign-in.html");
       return;
     }

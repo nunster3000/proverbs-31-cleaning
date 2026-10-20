@@ -14,7 +14,7 @@ async function portal({enabled=true,session=null,role='customer',verification=tr
     document:{querySelector:s=>nodes[s]},
     location:{search:'',hash:'',replace:v=>redirects.push(v)},history:{replaceState(){}},
     URLSearchParams,setTimeout,
-    P31Live:{init:async()=>({enabled}),api:async route=>{calls.push(route);return {role}},
+    P31Live:{init:async()=>({enabled,authEnabled:enabled}),api:async route=>{calls.push(route);return {role}},
       signIn:async()=>verification,
       client:{auth:{getSession:async()=>({data:{session},error:authError?new Error('unavailable'):null}),onAuthStateChange(){}}}}
   };

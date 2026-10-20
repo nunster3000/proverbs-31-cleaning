@@ -59,12 +59,14 @@ function createHandler({
           throw new HttpError(405, "Method not allowed");
         return reply(200, {
           enabled: configured,
+          authEnabled: configured && env.AUTH_ENABLED === "true",
           siteMode: "launch",
           url: configured ? env.SUPABASE_URL : null,
           key: configured ? env.SUPABASE_ANON_KEY : null,
           turnstileSiteKey: configured ? env.TURNSTILE_SITE_KEY || null : null,
           guestEnabled:
             configured &&
+            env.AUTH_ENABLED === "true" &&
             env.GUEST_CHECKOUT_ENABLED === "true" &&
             !!env.TURNSTILE_SITE_KEY,
         });
@@ -146,6 +148,7 @@ function createHandler({
           }),
         );
       }
+      if (env.AUTH_ENABLED !== "true") throw new HttpError(503, "Account access and booking submissions are not enabled yet.");
       if (!token) throw new HttpError(401, "Sign in required");
       const auth = await db.auth.getUser(token);
       if (auth.error || !auth.data?.user)

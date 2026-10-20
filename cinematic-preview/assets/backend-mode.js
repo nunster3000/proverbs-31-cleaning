@@ -32,7 +32,7 @@
       document.head.append(script);
     });
     const config = await P31Live.init();
-    if (!config.enabled) {
+    if (!config.enabled || !config.authEnabled) {
       unavailable('Please contact Proverbs 31 Cleaning Co. to arrange service while online booking is being connected.');
       return;
     }

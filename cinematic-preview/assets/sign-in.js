@@ -13,7 +13,7 @@
   }
   try {
     const config = await P31Live.init();
-    if (!config.enabled) {
+    if (!config.enabled || !config.authEnabled) {
       status.textContent = 'Online account access is being prepared. Please contact us to arrange your cleaning.';
       return;
     }
