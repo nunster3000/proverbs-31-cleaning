@@ -1,0 +1,10 @@
+.social-links{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:16px 0;margin:0}
+.social-links[hidden],[data-social-footer][hidden]{display:none!important}
+.social-links a{width:44px;height:44px;min-width:44px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #cdb58b;border-radius:50%;color:#493522;background:#fffaf1;transition:color .2s,background .2s}
+.social-links svg{display:block;width:20px;height:20px;fill:currentColor}
+.social-links a:hover{color:#947025;background:#f0e4cd}.social-links a:focus-visible{outline:3px solid #b38a45;outline-offset:3px}
+.site-social-footer{padding:12px 5%;border-top:1px solid #dfd1bd}
+footer .social-links{flex-basis:100%}
+@media(prefers-reduced-motion:reduce){.social-links a{transition:none}}
+
+footer{flex-wrap:wrap}

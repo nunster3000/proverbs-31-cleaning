@@ -17,6 +17,7 @@
   "devDependencies": {
     "@electric-sql/pglite": "^0.3.0",
     "esbuild": "^0.25.0",
-    "pg": "^8.23.1"
+    "pg": "^8.23.1",
+    "simple-icons": "11.15.0"
   }
 }

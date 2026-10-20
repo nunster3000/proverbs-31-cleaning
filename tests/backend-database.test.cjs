@@ -66,6 +66,7 @@ create table storage.objects(id uuid primary key default gen_random_uuid(),bucke
   await db.exec(fs.readFileSync("cinematic-preview/supabase/migrations/007_customer_attention.sql", "utf8"));
   await db.exec(fs.readFileSync("cinematic-preview/supabase/migrations/008_change_request_review.sql", "utf8"));
   await db.exec(fs.readFileSync("cinematic-preview/supabase/migrations/009_website_content.sql", "utf8"));
+  await db.exec(fs.readFileSync("cinematic-preview/supabase/migrations/010_social_links.sql", "utf8"));
   await db.query("insert into private.owner_accounts values($1)", [ids.owner]);
 })();
 async function rpc(name, args) {
@@ -804,4 +805,14 @@ test('public website content is owner editable, versioned and isolated from priv
  await db.exec('reset role;set role anon');const published=(await db.query('select * from public.site_content')).rows[0];assert.equal(published.company_intro,'Company introduction edited by the owner.');assert.equal(published.photo_path,path);await assert.rejects(()=>rpc('api_owner_content',['{}',photo.revision]));await assert.rejects(()=>db.query('select * from public.customers'));
  await login('alice');await assert.rejects(()=>db.query("insert into storage.objects(bucket_id,name) values('site-media',$1)",['owner/'+crypto.randomUUID()+'.jpg']));
  await db.exec('reset role');assert.equal((await db.query("select public from storage.buckets where id='walkthroughs'")).rows[0].public,false);assert.equal((await db.query("select public from storage.buckets where id='site-media'")).rows[0].public,true);
+});
+
+test('owner-controlled social links validate platform URLs and preserve independent visibility',async()=>{
+ await ready;await login('owner');let row=(await db.query('select * from public.site_content')).rows[0];const initial=row.revision;
+ const save=links=>rpc('api_owner_content',[JSON.stringify({social_links:links}),row.revision]);
+ for(const links of [{instagram:{enabled:true,url:''}},{instagram:{enabled:true,url:'javascript:alert(1)'}},{instagram:{enabled:true,url:'https://instagram.com.evil.example/a'}},{instagram:{enabled:true,url:'https://facebook.com/a'}},{instagram:{enabled:'true',url:'https://instagram.com/a'}},{unknown:{enabled:true,url:'https://instagram.com/a'}}])await assert.rejects(()=>save(links));
+ row=await save({facebook:{enabled:false,url:''},instagram:{enabled:true,url:'https://instagram.com/proverbs31'},youtube:{enabled:false,url:'https://youtube.com/@proverbs31'}});assert.equal(row.revision,initial+1);
+ await login('alice');assert.equal((await db.query('select social_links from public.site_content')).rows[0].social_links.instagram.enabled,true);await assert.rejects(()=>save({}),/Owner/);
+ await login('owner');row=await save({instagram:{enabled:false,url:'https://instagram.com/proverbs31'}});assert.equal(row.social_links.instagram.enabled,false);assert.equal(row.social_links.instagram.url,'https://instagram.com/proverbs31');
+ await db.exec('reset role;set role anon');assert.equal((await db.query('select social_links from public.site_content')).rows[0].social_links.instagram.enabled,false);
 });
