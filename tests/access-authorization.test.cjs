@@ -4,7 +4,7 @@ const source=fs.readFileSync('tests/backend-database.test.cjs','utf8').split('le
 const box={require:n=>n==='node:test'?{test(){},after(){}}:localRequire(n),module:{exports:{}},Blob,WebAssembly,console};vm.runInNewContext(source+'\nmodule.exports={db,ready,login,rpc,ids};',box);
 const {db,ready,login,rpc}=box.module.exports;after(()=>db.close());
 test('access authorization is versioned, private, customer-signed and required before travel',async()=>{
- await ready;await db.exec('reset role');await db.exec(fs.readFileSync('cinematic-preview/supabase/migrations/011_access_authorization.sql','utf8'));
+ await ready;await db.exec('reset role');await db.exec(fs.readFileSync('cinematic-preview/supabase/migrations/011_access_authorization.sql','utf8'));await db.exec('grant all on public.access_forms,public.access_signatures to anon,authenticated');await db.exec(fs.readFileSync('cinematic-preview/supabase/migrations/012_access_table_grants.sql','utf8'));assert.equal((await db.query("select has_table_privilege('authenticated','public.access_signatures','INSERT,UPDATE,DELETE') as allowed")).rows[0].allowed,false);
  await login('alice');
  const d=new Date();d.setDate(d.getDate()+10);while(d.getDay()===0)d.setDate(d.getDate()+1);
  const payload={service:'standard',space_id:3,name:'Alice Test',email:'alice@example.com',address:'123 Example Lane',phone:'5551234567',city:'Atlanta',state:'GA',zip:'30303',date:d.toISOString().slice(0,10),arrival:'morning',focus:[],extras:{}};
