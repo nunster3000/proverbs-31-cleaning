@@ -162,7 +162,7 @@
     $('#workspace-dialog').addEventListener('close',()=>{if(!workspaceDirty && view!=='My Profile')render();});
   }
   const ownerAttentionLabels={booking:'New bookings',walkthrough:'Walkthroughs to review',approval:'Customer price approvals',change:'Change requests'};
-  const getAttentionLabels=()=>me.role==='owner'?ownerAttentionLabels:{review:'Walkthrough reviewed',approval:'Price needs approval',payment:'Final payment due',change:'Request updates'};
+  const getAttentionLabels=()=>me.role==='owner'?ownerAttentionLabels:{access:'Access authorization',review:'Walkthrough reviewed',approval:'Price needs approval',payment:'Final payment due',change:'Request updates'};
   function updateAttention(){
     if(!me)return;
     const attentionLabels=getAttentionLabels();
@@ -176,7 +176,7 @@
     }
     root.append(tools);
     for(const node of document.querySelectorAll('#workspace-nav button,#mobile-workspace-nav button')){
-      const name=node.dataset.view || node.dataset.mobileView,kinds=(me.role==='owner'?{Bookings:['booking'],Walkthroughs:['walkthrough'],Payments:['approval'],'Proverbs 31 Cal':['change']}:{Bookings:['approval','change'],Walkthroughs:['review'],Payments:['payment']})[name] || [],count=kinds.reduce((sum,kind)=>sum+Number(attention.counts[kind] || 0),0),description=kinds.map(kind=>attentionLabels[kind]).join(' / ');
+      const name=node.dataset.view || node.dataset.mobileView,kinds=(me.role==='owner'?{Bookings:['booking'],Walkthroughs:['walkthrough'],Payments:['approval'],'Proverbs 31 Cal':['change']}:{Bookings:['approval','change','access'],Walkthroughs:['review'],Payments:['payment']})[name] || [],count=kinds.reduce((sum,kind)=>sum+Number(attention.counts[kind] || 0),0),description=kinds.map(kind=>attentionLabels[kind]).join(' / ');
       node.querySelector('.notification-badge')?.remove();
       if(count){const badge=n('span',count>99?'99+':String(count),'notification-badge');badge.setAttribute('aria-hidden','true');node.append(badge);}
       node.setAttribute('aria-label',name+(count?' · '+count+' '+description.toLowerCase():''));
@@ -186,10 +186,10 @@
     const attentionLabels=getAttentionLabels();
     const win=n('dialog',undefined,'attention-sheet');win.setAttribute('aria-label',attentionLabels[kind]);
     const head=n('div',undefined,'dialog-header');head.append(n('h2',attentionLabels[kind]),btn('×',()=>win.close(),'close'));win.append(head);
-    win.append(n('p',me.role==='owner'?(kind==='change'?'Requests stay here until an admin approves or declines them.':kind==='walkthrough'?'Walkthroughs stay here until their review is saved.':'Opening a booking clears its current new-item badge. Future updates can create a new badge.'):(kind==='change'?'Open the booking to read the admin’s decision.':kind==='review'?'Opening the booking clears this review notice.':kind==='approval'?'Your price stays flagged until you approve the current reviewed total.':'Your final balance stays flagged until payment is recorded. Contact the company to arrange payment.'),'fine'));
+    win.append(n('p',kind==='access'?'Read and sign your home-access permission form before Gabrielle heads to your visit.':me.role==='owner'?(kind==='change'?'Requests stay here until an admin approves or declines them.':kind==='walkthrough'?'Walkthroughs stay here until their review is saved.':'Opening a booking clears its current new-item badge. Future updates can create a new badge.'):(kind==='change'?'Open the booking to read the admin’s decision.':kind==='review'?'Opening the booking clears this review notice.':kind==='approval'?'Your price stays flagged until you approve the current reviewed total.':'Your final balance stays flagged until payment is recorded. Contact the company to arrange payment.'),'fine'));
     const items=(state.attention?.items || []).filter(item=>item.kind===kind);
     if(!items.length)win.append(n('p','You’re all caught up.'));
-    items.forEach(item=>{const row=n('div',undefined,'list-row');row.append(n('p',(item.customer_name?item.customer_name+' · ':'')+(labels[item.service] || '')+' · '+item.visit_date+(item.amount_cents!==null && item.amount_cents!==undefined?' · '+money(item.amount_cents):'')),btn('Open booking',async()=>{const b=await L.api('booking',{query:{id:item.booking_id}});const index=records.findIndex(row=>row.id===b.id);if(index<0)records.push(b);else records[index]=b;win.close();detail(b);}));win.append(row);});
+    items.forEach(item=>{const row=n('div',undefined,'list-row');row.append(n('p',(item.customer_name?item.customer_name+' · ':'')+(labels[item.service] || '')+' · '+item.visit_date+(item.amount_cents!==null && item.amount_cents!==undefined?' · '+money(item.amount_cents):'')),btn('Open booking',async()=>{const b=await L.api('booking',{query:{id:item.booking_id}});const index=records.findIndex(row=>row.id===b.id);if(index<0)records.push(b);else records[index]=b;win.close();detail(b,kind==="access");}));win.append(row);});
     if((state.attention?.counts[kind] || 0)>items.length)win.append(n('p','Showing the latest 100 notices. More appear as you review these.','fine'));
     win.addEventListener('close',()=>win.remove(),{once:true});document.body.append(win);win.showModal();
   }
@@ -352,6 +352,8 @@
         foot.append(n("span",(P31Workflow.milestone(b)<0 && b.status!=="cancelled"?"Awaiting deposit":statusLabel(b.status)),"badge"),n("strong",money(balance.total)+(b.final_cents===null?"*":"")));
         foot.querySelector(".badge").dataset.bookingStatus=b.id;
         c.append(facts,progress(b),foot,n("p",b.final_cents===null?"Starting estimate · subject to walkthrough review":"Reviewed total · "+({awaiting_customer:"Awaiting your approval",accepted:"Approved",draft:"In review"}[b.quote_status] || b.quote_status.replaceAll("_"," ")),"fine"));
+        if(b.status==="confirmed")c.append(n("p",b.access_signed_at?"Home-access authorization signed":me.role==="owner"?"Waiting for customer · Home-access authorization":"Action needed · Sign home-access authorization","badge"));
+        if(b.status==="confirmed" && !b.access_signed_at && me.role!=="owner")c.append(btn("Review access authorization",()=>detail(records.find(row=>row.id===b.id),true),"primary"));
         c.append(btn("Open booking", () => {const latest=records.find(row=>row.id===b.id);if(latest)detail(latest);else{render();msg("This booking is no longer available in this view.");}}));
         root.append(c);
       });
@@ -692,6 +694,8 @@
       P31Social.platforms.forEach(p=>{const group=n('fieldset');group.append(n('legend',p.label));const {visible,url}=socialFields[p.id];group.append(label('Show '+p.label+' icon',visible),label(p.label+' page URL',url));socials.append(group);});
       pageForm.insertBefore(socials,pageForm.lastElementChild);
       root.append(box);
+    } else if (view === "Access authorization") {
+      root.append(P31Access.editor({api:L.api,save:fn=>act(fn,"Access form published.")}));
     } else if (view === "Availability") {
       const c = section("Working days and arrival windows"),
         days = n("fieldset"),
@@ -823,7 +827,7 @@
       data: { id: b.id, action: name, data, request_id },
     });
   }
-  function detail(b) {
+  function detail(b, focusAccess=false) {
     if (!b) return;
     clearPreviews();
     $("#booking-update-notice").hidden=true;dialogDirty=false;
@@ -860,6 +864,7 @@
       ),
     );
     root.append(info);
+    root.append(P31Access.booking(b,{focus:focusAccess,arrivalLabel:arrivalName(b.arrival),owner:me.role==="owner",api:L.api,save:fn=>act(fn,"Home-access authorization signed.")}));
     const figures = P31Workflow.totals(b);
     const quote = section("Your pricing review");
     quote.classList.add("quote-comparison");
@@ -1043,6 +1048,8 @@
       reason = input();
     const approve=btn('Approve walkthrough & confirm booking',()=>act(()=>action(b,'approve_booking',{}),'Walkthrough approved. Booking confirmed.'));
     approve.disabled=!b.reviewed || b.deposit_paid_cents<b.quote_snapshot.deposit_cents || !['requested','awaiting_walkthrough'].includes(b.status);
+    if(!b.access_signed_at)status.querySelector('option[value=on_the_way]').disabled=true;
+    manage.append(n('p','Home-access authorization must be signed before On the way.','fine'));
     manage.append(n('p','Booked means the starting deposit is recorded. Confirm the walkthrough in the review section below. Travel and cleaning updates are manual.','fine'));
     form(
       manage,
@@ -1515,6 +1522,7 @@
             "Availability",
             "Pricing",
             "Website content",
+            "Access authorization",
             "Activity",
           ]
         : ["Bookings", "Walkthroughs", "Payments", "My Profile"];

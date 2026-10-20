@@ -185,6 +185,19 @@ function createHandler({
       }
       if (user.is_anonymous)
         throw new HttpError(403, "Account sign-in is required for this page.");
+      if (route === "access-form" && req.method === "GET") {
+        const id=url.searchParams.get('id');
+        if(id && !uuid(id))throw new HttpError(400,'Booking ID required');
+        return reply(200,await rpc('api_access_form',{p_id:id || null}));
+      }
+      if(route==='access-form' && req.method==='POST'){
+        if(!owner)throw new HttpError(403,'Owner access required');
+        return reply(201,await rpc('api_publish_access_form',{p_title:body.title,p_body:body.body,p_previous:body.previous || null}));
+      }
+      if(route==='access-sign' && req.method==='POST'){
+        if(!uuid(body.id)||!uuid(body.form_id))throw new HttpError(400,'Booking and form IDs required');
+        return reply(201,await rpc('api_sign_access',{p_id:body.id,p_form:body.form_id,p_visit:body.visit,p_name:body.name,p_consent:body.consent===true,p_electronic:body.electronic===true}));
+      }
       if (route === "calendar" && req.method === "GET") {
         if (!owner) throw new HttpError(403, "Owner access required");
         const month = url.searchParams.get("month");
