@@ -7,7 +7,7 @@ for (const name of fs.readdirSync('.'))
 const retired = new Set(['admin-store.js', 'admin.js', 'customer-updates.js',
   'customer-owner-bridge.js', 'guest-owner-bridge.js', 'walkthrough.js']);
 fs.cpSync('assets', 'dist/assets', { recursive: true,
-  filter: source => !retired.has(path.basename(source)) });
+  filter: source => !retired.has(path.basename(source)) && !/-(?:prompts|manifest)\.json$|(?:^|[-_])proof\.png$/i.test(path.basename(source)) });
 require('esbuild').buildSync({
   entryPoints: ['server/browser-entry.js'], bundle: true, minify: true,
   format: 'iife', outfile: 'dist/assets/backend-sdk.js',

@@ -1,0 +1,6 @@
+.git/
+.vercel/
+tmp/
+output/
+tests/
+docs/
