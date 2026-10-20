@@ -59,6 +59,7 @@ create table storage.objects(id uuid primary key default gen_random_uuid(),bucke
     ),
   );
   await db.exec(fs.readFileSync("cinematic-preview/supabase/migrations/002_owner_pricing.sql", "utf8"));
+  await db.exec(fs.readFileSync("cinematic-preview/supabase/migrations/003_manual_bookings_progress.sql", "utf8"));
   await db.query("insert into private.owner_accounts values($1)", [ids.owner]);
 })();
 async function rpc(name, args) {
@@ -563,4 +564,21 @@ test("only owners can change catalog prices, stale edits are rejected, and saved
   assert.equal(events.length,3);assert.equal(events[0].details.old_cents,11000);
   await login("alice");
   await assert.rejects(db.query("update public.service_spaces set base_cents=1 where id=3"), /permission denied/);
+});
+
+test('manual prices are owner-only, approval is explicit, and five visit stages persist', async()=>{
+ await ready;
+ const future=new Date();future.setDate(future.getDate()+50);const d=future.toISOString().slice(0,10);
+ const payload={first_name:'Jamie',last_name:'Taylor',name:'Jamie Taylor',email:'jamie@example.com',address:'45 Sample Road',service:'standard',space_id:3,date:d,arrival:'morning',manual_price_cents:18500,pricing_status:'awaiting_approval',pricing_notes:'Reviewed rooms by phone.'};
+ await login('alice');
+ await assert.rejects(()=>rpc('api_create_booking',[JSON.stringify(payload),crypto.randomUUID()]),/Owner access required/);
+ await login('owner');
+ await rpc('api_owner_schedule',['day_windows',JSON.stringify({date:d,windows:['morning']})]);
+ const made=await rpc('api_create_booking',[JSON.stringify(payload),crypto.randomUUID()]);
+ const b=made[0];assert.equal(b.property.first_name,'Jamie');assert.equal(b.property.last_name,'Taylor');assert.equal(b.quote_snapshot.total_cents,18500);assert.equal(b.quote_snapshot.deposit_cents,9250);assert.equal(b.quote_status,'awaiting_approval');assert.equal(b.deposit_paid_cents,0);
+ await assert.rejects(()=>rpc('api_booking_action',[b.id,'status',JSON.stringify({status:'completed'}),null]),/approval required/);
+ await assert.rejects(()=>rpc('api_booking_action',[b.id,'external_approval','{}',null]),/approval notes/);
+ await rpc('api_booking_action',[b.id,'external_approval',JSON.stringify({notes:'Customer approved the total by phone today.'}),null]);
+ for(const status of ['confirmed','on_the_way','in_progress','completed']){const updated=await rpc('api_booking_action',[b.id,'status',JSON.stringify({status}),null]);assert.equal(updated.status,status);}
+ await login('bob');await assert.rejects(()=>rpc('api_booking_action',[b.id,'status',JSON.stringify({status:'confirmed'}),null]));
 });

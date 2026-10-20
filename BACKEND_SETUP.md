@@ -153,3 +153,10 @@ Cancellation and rescheduling requests require admin review. They do not automat
 Owner-only notification previews render branded HTML and plain text from `cinematic-preview/server/email-templates.cjs`. Authentication template sources are in `cinematic-preview/supabase/templates/`. These are preparation only: Resend, delivery workers, authentication email templates in Supabase, and live sign-in remain unconfigured/disabled. A future delivery worker must snapshot the relevant revision or suppress stale queued notifications before sending.
 
 Validation: automated API, database, upload retry, file limits, totals, and template tests; isolated browser checks for quote acknowledgement, request submission, email preview, and a 390 px customer layout. No production customer records were created for these checks.
+
+
+## Manual bookings and visit progress (October 20, 2026)
+
+Migration `003_manual_bookings_progress.sql` adds `on_the_way` and `in_progress` to visit status while preserving existing bookings. Manual bookings collect first/last name, address, contact details, available visit block, owner-entered price, and separate pricing status. The owner may retain a starting estimate, prepare a reviewed price, or record an actual outside customer approval with required notes. This never records a payment. Manual guest bookings can have outside approval recorded later; all operations remain owner-only and audited. Customer dashboard cards and booking detail show Booked → Confirmed → On the way → Cleaning in progress → Completed. Awaiting walkthrough remains in the Booked stage; cancelled bookings show cancellation instead of progress. Completion retains the existing requirement for price approval.
+
+Applied migration 003 to hosted Supabase successfully. No real customer/test booking data was inserted into production. Local database tests verify owner-only manual price controls, pricing snapshot/deposit amounts, required approval notes, all progress statuses, and denial to unrelated customers.

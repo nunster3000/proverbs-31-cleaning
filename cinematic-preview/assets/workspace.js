@@ -124,6 +124,15 @@
     s.append(n("h2", title));
     return s;
   }
+  const visitStages=[['requested','Booked'],['confirmed','Confirmed'],['on_the_way','On the way'],['in_progress','Cleaning in progress'],['completed','Completed']];
+  const statusLabel=value=>visitStages.find(([id])=>id===value)?.[1] || (value==='awaiting_walkthrough'?'Booked · awaiting walkthrough':value==='cancelled'?'Cancelled':value.replaceAll('_',' '));
+  function progress(b){
+    const box=n('section',undefined,'visit-progress');box.setAttribute('aria-label','Cleaning progress');
+    box.append(n('p',b.status==='cancelled'?'Booking cancelled':'Your visit · '+statusLabel(b.status),'progress-title'));
+    if(b.status==='cancelled')return box;
+    const current=b.status==='awaiting_walkthrough'?0:visitStages.findIndex(([id])=>id===b.status);
+    const list=n('ol');visitStages.forEach(([id,text],i)=>{const item=n('li',undefined,i<current?'done':i===current?'current':'');if(i===current)item.setAttribute('aria-current','step');const dot=n('span',i<current?'✓':String(i+1),'stage-dot');dot.setAttribute('aria-hidden','true');item.append(dot,n('span',text));list.append(item);});box.append(list);return box;
+  }
   function summary(b, parent) {
     const q = b.quote_snapshot;
     parent.append(
@@ -135,7 +144,7 @@
           q.space,
       ),
       n("p", b.visit_date + " · " + arrivalName(b.arrival)),
-      n("p", "Status: " + b.status.replaceAll("_", " "), "badge"),
+      n("p", "Status: " + statusLabel(b.status), "badge"),
     );
     const dl = n("dl", undefined, "care-summary-prices");
     const row = (key, value) => {
@@ -225,8 +234,8 @@
         facts.append(n("span",labels[b.service]),n("span",b.quote_snapshot.space),n("strong",new Date(b.visit_date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})),n("span",arrivalName(b.arrival)));
         const balance=P31Workflow.totals(b);
         const foot=n("div",undefined,"booking-card-footer");
-        foot.append(n("span",b.status.replaceAll("_"," "),"badge"),n("strong",money(balance.total)+(b.final_cents===null?"*":"")));
-        c.append(facts,foot,n("p",b.final_cents===null?"Starting estimate · subject to walkthrough review":"Reviewed total · "+({awaiting_customer:"Awaiting your approval",accepted:"Approved",draft:"In review"}[b.quote_status] || b.quote_status.replaceAll("_"," ")),"fine"));
+        foot.append(n("span",statusLabel(b.status),"badge"),n("strong",money(balance.total)+(b.final_cents===null?"*":"")));
+        c.append(facts,progress(b),foot,n("p",b.final_cents===null?"Starting estimate · subject to walkthrough review":"Reviewed total · "+({awaiting_customer:"Awaiting your approval",accepted:"Approved",draft:"In review"}[b.quote_status] || b.quote_status.replaceAll("_"," ")),"fine"));
         c.append(btn("Open booking", () => detail(b)));
         root.append(c);
       });
@@ -688,6 +697,7 @@
     const root = $("#workspace-detail");
     root.replaceChildren();
     const info = section(b.customers?.name || "Your cleaning");
+    info.append(progress(b));
     summary(b, info);
     const property = b.property || b.customers || {};
     info.append(
@@ -878,9 +888,11 @@
           "requested",
           "awaiting_walkthrough",
           "confirmed",
+          "on_the_way",
+          "in_progress",
           "completed",
           "cancelled",
-        ].map((s) => [s, s.replaceAll("_", " ")]),
+        ].map((s) => [s, statusLabel(s)]),
         b.status,
       ),
       reason = input();
@@ -898,6 +910,10 @@
           "Booking status saved.",
         ),
     );
+    if(b.property?.source==='owner_manual' && b.quote_status==='awaiting_approval'){
+      const approval=n('textarea');approval.required=true;approval.maxLength=2000;
+      form(manage,[['Customer approval received outside the website · how and when',approval]],'Record customer price approval',()=>act(()=>action(b,'external_approval',{notes:approval.value}),'Customer approval recorded.'));
+    }
     const date = input("date", b.visit_date),
       window = choice([["", "Checking availability…"]], ""),
       why = input();
@@ -1153,7 +1169,8 @@
     root.replaceChildren();
     activeId = null;
     const c = section("Add a manual booking"),
-      name = input(),
+      firstName = input(),
+      lastName = input(),
       email = input("email"),
       phone = input("tel"),
       address = input(),
@@ -1166,6 +1183,9 @@
         ],
         "Move-In",
       ),
+      price = input('number'),
+      pricingStatus=choice([['starting','Starting estimate · walkthrough pending'],['awaiting_approval','Reviewed · awaiting customer approval'],['accepted_external','Approved with customer · record outside approval']], 'starting'),
+      pricingNotes=n('textarea'),
       date = input("date"),
       arrival = choice([["", "Choose a date first"]], "");
     let availabilityRequest = 0;
@@ -1200,7 +1220,12 @@
       }
     };
     arrival.required = true;
-    [name, email, address, date].forEach((i) => (i.required = true));
+    [firstName,lastName,email,address,date,price].forEach(i=>i.required=true);
+    firstName.autocomplete='given-name';lastName.autocomplete='family-name';email.autocomplete='email';phone.autocomplete='tel';address.autocomplete='street-address';
+    firstName.maxLength=100;lastName.maxLength=100;price.min='0.01';price.max='999999.99';price.step='0.01';price.inputMode='decimal';pricingNotes.maxLength=2000;
+    const suggestPrice=()=>{price.value=((catalog.spaces.find(item=>String(item.id)===space.value)?.base_cents || 0)+(catalog.services.find(item=>item.id===service.value)?.upgrade_cents || 0))/100;};
+    suggestPrice();space.onchange=suggestPrice;
+    pricingStatus.onchange=()=>{pricingNotes.required=pricingStatus.value!=='starting';};
     service.onchange = () => {
       space.replaceChildren();
       const vals = spaceChoices(service.value);
@@ -1209,6 +1234,8 @@
         o.value = id;
         space.append(o);
       });
+      suggestPrice();
+      mode.closest("label").hidden=service.value!=="apartment";
     };
     const existing = choice(
       [
@@ -1220,7 +1247,7 @@
     existing.onchange = () => {
       const saved = customers.find((c) => c.id === existing.value);
       if (saved) {
-        name.value = saved.name;
+        const parts=saved.name.trim().split(/\s+/);firstName.value=parts.shift();lastName.value=parts.join(' ');
         email.value = saved.email;
         phone.value = saved.phone;
         address.value = saved.address;
@@ -1231,15 +1258,19 @@
       c,
       [
         ["Existing customer", existing],
-        ["Name", name],
+        ["First name", firstName],
+        ["Last name", lastName],
         ["Email", email],
         ["Phone", phone],
         ["Address", address],
         ["Service", service],
         ["Space", space],
         ["Apartment mode (if applicable)", mode],
-        ["Date", date],
-        ["Arrival", arrival],
+        ["Visit date", date],
+        ["Arrival block", arrival],
+        ["Booking price ($)",price],
+        ["Pricing status",pricingStatus],
+        ["Pricing / customer approval notes",pricingNotes],
       ],
       "Save booking",
       () =>
@@ -1251,7 +1282,9 @@
               request_id: key,
               booking: {
                 ...(existing.value ? { customer_id: existing.value } : {}),
-                name: name.value,
+                name: firstName.value.trim()+' '+lastName.value.trim(),
+                first_name:firstName.value.trim(),last_name:lastName.value.trim(),
+                manual_price_cents:Math.round(Number(price.value)*100),pricing_status:pricingStatus.value,pricing_notes:pricingNotes.value.trim(),
                 email: email.value,
                 phone: phone.value,
                 address: address.value,
@@ -1270,6 +1303,8 @@
           $("#workspace-dialog").close();
         }, "Manual booking created."),
     );
+    mode.closest('label').hidden=service.value!=='apartment';
+    c.prepend(n('p','Enter the scheduled visit and total service price. A starting estimate remains subject to review. Record customer approval only after it has actually been received; this does not record a payment.','fine'));
     root.append(c);
     $("#workspace-dialog").showModal();
   }
