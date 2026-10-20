@@ -1,0 +1,6 @@
+HEIC-to-JPG conversion uses heic-to 1.6.6 (unmodified), by Hopper Gee.
+License: LGPL-3.0-or-later. Full notice: /assets/heic-to-LICENSE.txt
+Source and build instructions: https://github.com/hoppergee/heic-to
+Published package source: https://www.npmjs.com/package/heic-to/v/1.6.6
+The converter includes libheif; see the package license for component notices.
+The converter is distributed separately as /assets/heic-converter.js.

@@ -12,3 +12,9 @@ require('esbuild').buildSync({
   entryPoints: ['server/browser-entry.js'], bundle: true, minify: true,
   format: 'iife', outfile: 'dist/assets/backend-sdk.js',
 });
+
+require('esbuild').buildSync({
+  entryPoints: ['server/heic-entry.js'], bundle: true, minify: true,
+  format: 'iife', outfile: 'dist/assets/heic-converter.js',
+});
+fs.copyFileSync('node_modules/heic-to/LICENSE', 'dist/assets/heic-to-LICENSE.txt');

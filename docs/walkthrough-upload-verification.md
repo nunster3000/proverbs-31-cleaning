@@ -30,4 +30,4 @@ Evidence files (local, not deployed): `tmp/upload-photo-mobile.png` and `tmp/upl
 
 With email sign-in still disabled, this does not establish hosted Supabase upload/signing behavior or native phone camera selection. After sign-in is available, repeat with customer and admin accounts on actual iPhone and Android devices, including a camera photo, short phone video, mobile-network interruption, and expired private preview links. MOV acceptance does not guarantee every phone video codec will play in every browser; the decoded playback checked here was MP4.
 
-The current interface tells customers to export HEIC as JPG before uploading. Automatic HEIC conversion and video transcoding are not implemented.
+Update: automatic on-device HEIC/HEIF-to-JPG conversion was subsequently implemented and verified with a real HEIC file. See heic-upload-verification.md. Video transcoding is not implemented.

@@ -9,6 +9,34 @@ window.P31Workflow = (() => {
     if (active.reduce((sum, item) => sum + Number(item.bytes || 0), 0) + file.size > 80 * 1024 * 1024) throw Error('The total walkthrough limit is 80 MB per booking. Remove a file or use a smaller video.');
     return true;
   }
+  const inputTypes = [...types, 'image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence', '.heic', '.heif'];
+  const isHeic = file => !!file && (/^image\/hei[cf](?:-sequence)?$/i.test(file.type || '') || /\.hei[cf]$/i.test(file.name || ''));
+  let converter;
+  async function prepareFile(file, existing = [], progress = () => {}) {
+    if (!isHeic(file)) { validateFile(file, existing); return file; }
+    // Check source size/count before allocating the decoder; check JPEG quota again afterward.
+    validateFile({type:'image/jpeg',size:file.size}, existing);
+    progress('Converting iPhone photo to JPG…');
+    try {
+      if (!window.P31ConvertHEIC) {
+        if (!converter) converter = new Promise((resolve,reject) => {
+          const script=document.createElement('script');script.src='/assets/heic-converter.js';
+          script.onload=()=>window.P31ConvertHEIC?resolve():reject(Error('Converter unavailable'));
+          script.onerror=()=>{script.remove();reject(Error('Converter unavailable'))};document.head.append(script);
+        }).catch(error=>{converter=null;throw error});
+        await converter;
+      }
+      const blob=await window.P31ConvertHEIC(file);
+      if (!blob?.size || blob.type!=='image/jpeg') throw Error('Invalid conversion');
+      const jpeg=new File([blob],(file.name || 'room-photo').replace(/\.hei[cf]$/i,'')+'.jpg',{type:'image/jpeg',lastModified:file.lastModified || Date.now()});
+      validateFile(jpeg,existing);
+      progress('Converted to JPG. Ready to upload.');
+      return jpeg;
+    } catch(error) {
+      if (/20 MB|80 MB|6 files/.test(error.message)) throw error;
+      throw Error('We couldn’t convert this photo. Try selecting it again, or choose a JPG photo.');
+    }
+  }
   function totals(booking) {
     const starting = booking.quote_snapshot.total_cents;
     const adjustments = (booking.quote_adjustments || []).reduce((sum, item) => sum + item.cents, 0);
@@ -35,5 +63,5 @@ window.P31Workflow = (() => {
       approvals:freshActivity.some(e=>['accept_quote','record_approval','external_approval'].includes(e.action)) || rows.some(b=>{const old=before.records.find(o=>o.id===b.id);return old && old.quote_status!==b.quote_status && b.quote_status==='accepted'})
     };
   }
-  return {validateFile,totals,types,milestone,syncChanges};
+  return {validateFile,prepareFile,inputTypes,isHeic,totals,types,milestone,syncChanges};
 })();

@@ -93,3 +93,29 @@ test('verification retry reuses the transferred object and preserves its reserva
 test('upload rejects a signed destination outside its own storage project',async()=>{
  const h=uploadHarness({url:'https://attacker.example/storage/v1/object/upload/sign/stolen',finishFailures:10});await assert.rejects(()=>h.L.upload('booking',h.file,'Kitchen'),/Invalid upload destination/);assert.equal(h.calls.transfer,0);
 });
+
+function heicWorkflow(convert){const ctx={window:{P31ConvertHEIC:convert},File};vm.runInNewContext(fs.readFileSync('cinematic-preview/assets/workflow-tools.js','utf8'),ctx);return ctx.window.P31Workflow}
+test('HEIC selection becomes a named JPEG before upload, preserving the original file',async()=>{
+ const source=new File(['heic-source'],'Kitchen.HEIC',{type:'image/heic',lastModified:1234}),events=[];let received;
+ const w=heicWorkflow(async f=>{received=f;return new Blob(['jpg'],{type:'image/jpeg'})});const out=await w.prepareFile(source,[],s=>events.push(s));
+ assert.equal(received,source);assert.equal(out.name,'Kitchen.jpg');assert.equal(out.type,'image/jpeg');assert.equal(out.lastModified,1234);assert.equal(source.name,'Kitchen.HEIC');assert.match(events[0],/Converting/);assert.match(events.at(-1),/Ready/);assert.equal(w.validateFile(out),true);
+});
+test('HEIF extensions and iPhone MIME variants convert; ordinary photos/videos bypass the decoder',async()=>{
+ let conversions=0;const w=heicWorkflow(async()=>{conversions++;return new Blob(['jpg'],{type:'image/jpeg'})});
+ for(const [name,type]of [['room.heif',''],['room.heic','application/octet-stream'],['photo','image/heif'],['photo','image/heic-sequence']])assert.equal((await w.prepareFile(new File(['source'],name,{type}))).type,'image/jpeg');
+ assert.equal(conversions,4);const jpg=new File(['jpg'],'photo.jpg',{type:'image/jpeg'}),video=new File(['mp4'],'clip.mp4',{type:'video/mp4'});assert.equal(await w.prepareFile(jpg),jpg);assert.equal(await w.prepareFile(video),video);assert.equal(conversions,4);
+});
+test('HEIC conversion enforces source and converted quotas and reports decoder failures safely',async()=>{
+ let calls=0;const w=heicWorkflow(async()=>{calls++;return new Blob([new Uint8Array(20*1024*1024+1)],{type:'image/jpeg'})});
+ await assert.rejects(()=>w.prepareFile({name:'large.heic',size:20*1024*1024+1}),/20 MB/);assert.equal(calls,0);
+ await assert.rejects(()=>w.prepareFile({name:'room.heic',size:100},Array.from({length:6},()=>({bytes:1,status:'ready'}))),/6 files/);assert.equal(calls,0);
+ await assert.rejects(()=>w.prepareFile({name:'room.heic',size:100}),/20 MB/);assert.equal(calls,1);
+ const broken=heicWorkflow(async()=>{throw Error('internal decoder details')});await assert.rejects(()=>broken.prepareFile({name:'broken.heic',size:100}),/couldn’t convert/);
+ const invalid=heicWorkflow(async()=>new Blob(['invalid'],{type:'image/png'}));await assert.rejects(()=>invalid.prepareFile({name:'broken.heic',size:100}),/couldn’t convert/);
+});
+test('converter downloads only on HEIC selection and a failed download can be retried',async()=>{
+ let loads=0;const ctx={File,window:{},document:{createElement:()=>({remove(){}}),head:{append(script){loads++;assert.equal(script.src,'/assets/heic-converter.js');queueMicrotask(()=>{if(loads===1)script.onerror();else{ctx.window.P31ConvertHEIC=async()=>new Blob(['jpg'],{type:'image/jpeg'});script.onload()}})}}}};
+ vm.runInNewContext(fs.readFileSync('cinematic-preview/assets/workflow-tools.js','utf8'),ctx);const w=ctx.window.P31Workflow;
+ await w.prepareFile(new File(['jpg'],'plain.jpg',{type:'image/jpeg'}));assert.equal(loads,0);
+ const file=new File(['heic'],'room.heic',{type:'image/heic'});await assert.rejects(()=>w.prepareFile(file),/couldn’t convert/);assert.equal((await w.prepareFile(file)).type,'image/jpeg');assert.equal(loads,2);
+});
