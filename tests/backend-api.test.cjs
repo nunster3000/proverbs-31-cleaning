@@ -290,3 +290,24 @@ test('owner photo upload validates image bytes and uses only the public business
  assert.ok((await req({mime:'image/png',base64:Buffer.from('<script/>').toString('base64')})).value.error);assert.equal(uploads,0);
  const out=await req({mime:'image/png',base64:'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a2ioAAAAASUVORK5CYII='});assert.match(out.value.url,/site-media\/owner\//);assert.equal(uploads,1);
 });
+
+test('customer directory and history require verified owner role before reading any data',async()=>{
+ let reads=0;
+ const factory=()=>({auth:{getUser:async()=>({data:{user:{id:'customer',email_confirmed_at:'2026-01-01'}}})},rpc:async()=>({data:false}),from:()=>{reads++;throw Error('Unexpected read')}});
+ for(const route of ['customer-directory','customer-history']){
+  const result=await call(createHandler({env,clientFactory:factory}),{url:'/api/app?route='+route,token:'valid'});
+  assert.equal(result.value.error,'Owner access required');
+ }
+ assert.equal(reads,0);
+});
+test('customer directory searches database across pages and applies account filters safely',async()=>{
+ let operations=[];
+ const query={select:(...args)=>(operations.push(['select',...args]),query),or:x=>(operations.push(['or',x]),query),eq:(...args)=>(operations.push(['eq',...args]),query),order:(...args)=>(operations.push(['order',...args]),query),range:(...args)=>(operations.push(['range',...args]),Promise.resolve({data:[{id:'person'}],count:61}))};
+ const factory=()=>({auth:{getUser:async()=>({data:{user:{id:'owner',email_confirmed_at:'2026-01-01'}}})},rpc:async()=>({data:true}),from:()=>query});
+ const h=createHandler({env,clientFactory:factory});
+ const r=await call(h,{url:'/api/app?route=customer-directory&search=Alice%2C%28%25%29&page=2&kind=account',token:'valid'});
+ assert.equal(r.value.total,61);assert.equal(r.value.page,2);assert.deepEqual(operations.find(x=>x[0]==='range'),['range',50,74]);assert.deepEqual(operations.find(x=>x[0]==='eq'),['eq','account_enabled',true]);assert.equal(operations.find(x=>x[0]==='or')[1],'name.ilike.%Alice%,email.ilike.%Alice%,phone.ilike.%Alice%,address.ilike.%Alice%');
+ operations=[];await call(h,{url:'/api/app?route=customer-directory&search=4045550100',token:'valid'});assert.match(operations.find(x=>x[0]==='or')[1],/phone\.ilike\.%4%0%4%5%5%5%0%1%0%0%/);
+ operations=[];assert.match((await call(h,{url:'/api/app?route=customer-history&id=bad',token:'valid'})).value.error,/Customer ID/);assert.equal(operations.length,0);
+ const id='11111111-1111-4111-8111-111111111111';await call(h,{url:'/api/app?route=customer-history&id='+id+'&page=1',token:'valid'});assert.deepEqual(operations.find(x=>x[0]==='eq'),['eq','customer_id',id]);assert.deepEqual(operations.find(x=>x[0]==='range'),['range',20,39]);
+});

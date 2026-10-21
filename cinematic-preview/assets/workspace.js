@@ -16,6 +16,7 @@
     calendarDate = new Date().toLocaleDateString("en-CA", {
       timeZone: "America/New_York",
     });
+  let directorySearch="",directoryKind="all",directoryPage=0,directoryRequest=0,customerDetailRequest=0;
   const names = {
       morning: "9:00 AM – 12:00 PM",
       afternoon: "12:00 PM – 3:00 PM",
@@ -377,27 +378,7 @@
         );
       root.append(pages);
     } else if (view === "Customers") {
-      customers.forEach((c) => {
-        const card = section(c.name);
-        card.append(
-          n("p", c.email + " · " + c.phone),
-          n("p", c.address),
-          n(
-            "p",
-            c.account_enabled ? "Account customer" : "Guest / manual customer",
-            "fine",
-          ),
-          btn("Edit contact details", () => editCustomer(c)),
-        );
-        root.append(card);
-      });
-      if (!customers.length)
-        root.append(
-          n(
-            "p",
-            "Your customer database is empty. Bookings and saved profiles create customer records.",
-          ),
-        );
+      renderCustomerDirectory(root);
     } else if (view === "Proverbs 31 Cal") {
       const c = section("Proverbs 31 Cal");
       c.append(
@@ -830,6 +811,7 @@
     });
   }
   function detail(b, focusAccess=false) {
+    $("#workspace-dialog").setAttribute("aria-label","Booking details");$("#workspace-dialog .dialog-header h2").textContent="Booking details";
     const checklistTarget=typeof focusAccess==="string"?focusAccess:null;
     if (!b) return;
     clearPreviews();
@@ -1281,7 +1263,38 @@
     );
     root.append(privateNotes);
   }
+  function renderCustomerDirectory(root) {
+    const search=input("search",directorySearch),kind=choice([["all","All customers"],["account","Account customers"],["guest","Guest / manual customers"]],directoryKind);
+    search.maxLength=120;search.placeholder="Name, email, phone, or address";search.autocomplete="off";
+    const controls=section("Find a customer");
+    controls.append(n("p","Search your saved customers, then open their contact details and booking history.","fine"));
+    form(controls,[["Search customers",search],["Customer type",kind]],"Search",async()=>{directorySearch=search.value.trim();directoryKind=kind.value;directoryPage=0;workspaceDirty=false;await load();});
+    controls.append(btn("Clear search",async()=>{directorySearch="";directoryKind="all";directoryPage=0;render();}));
+    const results=n("div"),status=n("p","Loading customers…","fine");status.setAttribute("role","status");root.append(controls,status,results);
+    async function load(){
+      const request=++directoryRequest;status.textContent="Searching customers…";
+      try{
+        const packet=await L.api("customer-directory",{query:{search:directorySearch,kind:directoryKind,page:directoryPage}});
+        if(request!==directoryRequest || view!=="Customers" || !root.contains(results))return;
+        results.replaceChildren();status.textContent=packet.total+" customer"+(packet.total===1?"":"s")+" found";
+        packet.items.forEach(c=>{const card=section(c.name);card.classList.add("customer-directory-card");card.append(n("p",c.email),n("p",c.phone || "Phone not provided","fine"),n("p",c.address || "Address not provided"),n("span",c.account_enabled?"Account customer":"Guest / manual customer","badge"),btn("View customer",()=>customerDetails(c)));results.append(card);});
+        if(!packet.items.length)results.append(n("p",directorySearch || directoryKind!=="all"?"No customers match your search. Try another name, email, phone, or address.":"No customers yet. Bookings and saved profiles will appear here."));
+        const pages=n("div",undefined,"detail-actions");if(directoryPage>0)pages.append(btn("Previous customers",async()=>{directoryPage--;await load();}));if((directoryPage+1)*packet.pageSize<packet.total)pages.append(btn("Next customers",async()=>{directoryPage++;await load();}));results.append(pages);
+      }catch(e){if(request===directoryRequest && root.contains(results)){status.textContent=e.message;results.replaceChildren(btn("Retry customer search",load));}}
+    }
+    load();
+  }
+  function customerDetails(c) {
+    $("#workspace-dialog").setAttribute("aria-label","Customer details");$("#workspace-dialog .dialog-header h2").textContent="Customer details";
+    activeId=null;dialogDirty=false;const request=++customerDetailRequest,root=$("#workspace-detail");root.replaceChildren();$("#dialog-message").textContent="";
+    const info=section(c.name);info.append(n("p",c.account_enabled?"Account customer":"Guest / manual customer","badge"));
+    const fields=n("dl");for(const [title,value] of [["Email",c.email],["Phone",c.phone],["Address",c.address],["Access instructions",c.access_notes],["Pet notes",c.pet_notes]])fields.append(n("dt",title),n("dd",value || "Not provided"));info.append(fields,btn("Edit contact details",()=>editCustomer(c)),btn("Add booking for this customer",()=>manual(c),"primary"));root.append(info);
+    const history=section("Booking history"),status=n("p","Loading booking history…","fine"),rows=n("div");status.setAttribute("role","status");history.append(status,rows);root.append(history);$("#workspace-dialog").showModal();let historyPage=0;
+    async function load(){try{const packet=await L.api("customer-history",{query:{id:c.id,page:historyPage}});if(request!==customerDetailRequest || !root.contains(history) || !$("#workspace-dialog").open)return;status.textContent=packet.total+" booking"+(packet.total===1?"":"s");rows.replaceChildren();for(const b of packet.items){const card=section(labels[b.service] || b.service);card.append(n("p",b.visit_date+" · "+arrivalName(b.arrival)),n("p",statusLabel(b.status),"badge"),n("p",(b.final_cents===null?"Starting estimate*: ":"Reviewed total: ")+money(b.final_cents===null?b.quote_snapshot.total_cents:b.final_cents)),btn("Open booking",async()=>detail(await L.api("booking",{query:{id:b.id}}))));rows.append(card);}if(!packet.items.length)rows.append(n("p","No bookings for this customer yet."));const pages=n("div",undefined,"detail-actions");if(historyPage>0)pages.append(btn("Previous visits",async()=>{historyPage--;await load();}));if((historyPage+1)*packet.pageSize<packet.total)pages.append(btn("More visits",async()=>{historyPage++;await load();}));rows.append(pages);}catch(e){if(root.contains(history)){status.textContent=e.message;rows.replaceChildren(btn("Retry booking history",load));}}}
+    load();
+  }
   function editCustomer(c) {
+    $("#workspace-dialog").setAttribute("aria-label","Customer details");$("#workspace-dialog .dialog-header h2").textContent="Customer details";
     activeId = null;
     const root = $("#workspace-detail");
     root.replaceChildren();
@@ -1333,7 +1346,8 @@
     root.append(box);
     $("#workspace-dialog").showModal();
   }
-  async function manual() {
+  async function manual(prefill=null) {
+    $("#workspace-dialog").setAttribute("aria-label","Manual booking");$("#workspace-dialog .dialog-header h2").textContent="Manual booking";
     let catalog;
     try { catalog = await L.api("catalog"); }
     catch (error) { msg(error.message); return; }
@@ -1415,12 +1429,12 @@
     const existing = choice(
       [
         ["", "New guest customer"],
-        ...customers.map((c) => [c.id, c.name + " · " + c.email]),
+        ...[...customers.filter(c=>c.id!==prefill?.id),...(prefill?[prefill]:[])].map((c) => [c.id, c.name + " · " + c.email]),
       ],
       "",
     );
     existing.onchange = () => {
-      const saved = customers.find((c) => c.id === existing.value);
+      const saved = prefill?.id===existing.value?prefill:customers.find((c) => c.id === existing.value);
       if (saved) {
         const parts=saved.name.trim().split(/\s+/);firstName.value=parts.shift();lastName.value=parts.join(' ');
         email.value = saved.email;
@@ -1428,6 +1442,7 @@
         address.value = saved.address;
       }
     };
+    if(prefill){existing.value=prefill.id;existing.onchange();}
     let key = crypto.randomUUID();
     form(
       c,

@@ -278,6 +278,37 @@ function createHandler({
         if(!uuid(body.id))throw new HttpError(400,'Booking ID required');
         await rpc('api_guest_revoke',{p_booking:body.id});return reply(200,{revoked:true});
       }
+      if (route === "customer-directory" && req.method === "GET") {
+        if (!owner) throw new HttpError(403, "Owner access required");
+        const page = Math.min(10000, Math.max(0, Math.floor(Number(url.searchParams.get("page")) || 0)));
+        const search = (url.searchParams.get("search") || "").trim();
+        if (search.length > 120) throw new HttpError(400, "Search must be 120 characters or fewer");
+        const kind = url.searchParams.get("kind") || "all";
+        if (!["all", "account", "guest"].includes(kind)) throw new HttpError(400, "Invalid customer filter");
+        let query = db.from("customers").select("*", {count:"exact"});
+        // Remove PostgREST filter operators/delimiters; search is a literal substring.
+        const term = search.replace(/[,()%_\\"*]/g," ").replace(/\s+/g," ").trim();
+        if (search && !term) return reply(200,{items:[],total:0,page,pageSize:25});
+        if (term) {
+          const filters=["name","email","phone","address"].map(field=>field+".ilike.%"+term+"%");
+          const digits=term.replace(/\D/g,"");
+          if(digits.length>=7 && !/[a-z]/i.test(term)) filters.push("phone.ilike.%"+digits.split("").join("%")+"%");
+          query=query.or(filters.join(","));
+        }
+        if (kind !== "all") query=query.eq("account_enabled",kind === "account");
+        const result=await query.order("name").order("id").range(page*25,page*25+24);
+        if(result.error) throw result.error;
+        return reply(200,{items:result.data,total:result.count,page,pageSize:25});
+      }
+      if (route === "customer-history" && req.method === "GET") {
+        if (!owner) throw new HttpError(403, "Owner access required");
+        const id=url.searchParams.get("id");
+        if(!uuid(id)) throw new HttpError(400,"Customer ID required");
+        const page=Math.min(10000,Math.max(0,Math.floor(Number(url.searchParams.get("page")) || 0)));
+        const result=await db.from("bookings").select("id,service,visit_date,arrival,status,quote_snapshot,final_cents,deposit_paid_cents,final_paid_cents,quote_adjustments(*)",{count:"exact"}).eq("customer_id",id).order("visit_date",{ascending:false}).order("id").range(page*20,page*20+19);
+        if(result.error) throw result.error;
+        return reply(200,{items:result.data,total:result.count,page,pageSize:20});
+      }
       if (route === "customers" && req.method === "GET") {
         if (!owner) throw new HttpError(403, "Owner access required");
         const page = Math.max(
