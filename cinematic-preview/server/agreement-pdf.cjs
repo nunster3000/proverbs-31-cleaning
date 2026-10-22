@@ -1,4 +1,6 @@
 const {PDFDocument,StandardFonts,rgb}=require('pdf-lib');
+const fontkit=require('@pdf-lib/fontkit');
+const signatureFonts=new Set(['allura','greatvibes','parisienne']);
 const clean=s=>String(s ?? '').replace(/[\u2018\u2019]/g,"'").replace(/[\u201c\u201d]/g,'"').replace(/[\u2013\u2014]/g,'-').replace(/\u2022/g,'-').replace(/[^\x20-\x7e\n\u00a0-\u00ff]/gu,c=>'[U+'+c.codePointAt(0).toString(16).toUpperCase()+']');
 const money=c=>c===null||c===undefined?'Not yet agreed':new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(c/100);
 const time=s=>s?new Date(s).toLocaleString('en-US',{timeZone:'America/New_York',timeZoneName:'short'}):'Pending';
@@ -21,8 +23,11 @@ function details(d={},a={}){
  ['Entry arrangement',a.entry_method||''],['Special entry instructions',a.entry_instructions||'None provided'],['Security / restricted areas',a.security_notes||'None provided'],['Pets and safety',a.pets_safety||'None provided'],['Fragile items / existing damage / special care',a.property_care||'None provided'],['Emergency contact (optional)',a.emergency_contact||'Not provided'],['Other services requested',a.other_services||'None requested; additions require mutual approval']
  ];
 }
-async function createAgreementPdf(r){
- const pdf=await PDFDocument.create(),font=await pdf.embedFont(StandardFonts.Helvetica),bold=await pdf.embedFont(StandardFonts.HelveticaBold),script=await pdf.embedFont(({classic:StandardFonts.TimesRomanItalic,modern:StandardFonts.Helvetica,formal:StandardFonts.TimesRoman}[r.form.configuration?.representative_style]||StandardFonts.TimesRomanItalic)),clientScript=await pdf.embedFont(StandardFonts.TimesRomanItalic);
+async function createAgreementPdf(r,{loadFont}={}){
+ const pdf=await PDFDocument.create();pdf.registerFontkit(fontkit);const font=await pdf.embedFont(StandardFonts.Helvetica),bold=await pdf.embedFont(StandardFonts.HelveticaBold),standardScript=await pdf.embedFont(({classic:StandardFonts.TimesRomanItalic,modern:StandardFonts.Helvetica,formal:StandardFonts.TimesRoman}[r.form.configuration?.representative_style]||StandardFonts.TimesRomanItalic)),clientScript=await pdf.embedFont(StandardFonts.TimesRomanItalic);
+ const style=r.form.configuration?.representative_style,customScript=signatureFonts.has(style);
+ let script=standardScript;
+ if(customScript){const bytes=loadFont?await loadFont(style):await (async()=>{const response=await fetch(new URL('assets/signature-fonts/'+style+'.ttf',location.href));if(!response.ok)throw Error('Signature font could not be loaded. Please try the download again.');return new Uint8Array(await response.arrayBuffer());})();script=await pdf.embedFont(bytes,{subset:false});}
  pdf.setTitle(r.form.title);pdf.setAuthor('Proverbs 31 Cleaning Services');pdf.setCreationDate(new Date(r.signed_at));
  let page,y;const pages=[];const addPage=()=>{page=pdf.addPage([612,792]);pages.push(page);y=732;page.drawText('PROVERBS 31  /  CLEANING SERVICES',{x:44,y,font:bold,size:10,color:rgb(.48,.34,.14)});y-=30;};addPage();
  const line=(text,{size=10,face=font,gap=5}={})=>{
@@ -33,9 +38,9 @@ async function createAgreementPdf(r){
  for(const [label,value] of details(r.agreement_snapshot,r.answers))line(label+': '+value);
  addPage();line('Agreement terms',{size:14,face:bold,gap:10});for(const paragraph of r.form.body.split('\n')){const heading=/^\d+\. /.test(paragraph);if(heading&&y<130)addPage();line(paragraph,{face:heading?bold:font});}
  if(r.form.configuration?.questions){if(y<120)addPage();y-=10;line('Questionnaire responses',{size:12,face:bold});for(const q of r.form.configuration.questions)line(q.label+': '+(r.answers?.[q.id]||'Not provided'));}
- if(y<280)addPage();y-=10;line('Electronic signatures and record',{size:12,face:bold});
+ if(y<(customScript?330:280))addPage();y-=10;line('Electronic signatures and record',{size:12,face:bold});
  line('Client / authorized occupant: '+r.signer_name,{size:15,face:clientScript});line('Customer signed: '+time(r.signed_at));
- line('Representative: '+(r.representative_name||'Awaiting representative signature'),{size:15,face:script});line('Representative signed: '+time(r.representative_signed_at));
+ if(customScript){line('Representative signature:');y-=24;line(r.representative_name||'Awaiting representative signature',{size:30,face:script,gap:12});}else line('Representative: '+(r.representative_name||'Awaiting representative signature'),{size:15,face:script});line('Representative signed: '+time(r.representative_signed_at));
  if(r.form.automatic_representative)line('Representative signature automatically applied under the authorization recorded with this form version. Authorization date: '+time(r.form.representative_authorized_at));
  line('Customer acknowledged permission to enter and consented to electronic signing.');line('Booking: '+r.booking_id);line('Form version: '+r.form_id);line('Receipt: '+r.id);
  pages.forEach((p,i)=>p.drawText(`Private customer record  |  ${i+1} of ${pages.length}`,{x:44,y:30,font,size:8,color:rgb(.4,.4,.4)}));
