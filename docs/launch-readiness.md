@@ -66,3 +66,11 @@ Practice manual booking, calendar opening/blocking, walkthrough review, proposed
 ## Verification — October 22
 
 Full suite: 118 passed, one optional native PostgreSQL test skipped, no failures. Additional owner-only API coverage added separately. Isolated database/browser checks covered explicit approval, private draft/publication, stale versions and frozen agreement policy snapshots. PDF appendix and Allura signature visually inspected. Fictional approvals and policy text stayed in localhost QA only. Migration 020 applied without publishing any business policy or changing authentication/delivery flags.
+
+## Scheduled website opening — October 26, 9 AM Eastern
+
+The business project uses `LAUNCH_COUNTDOWN_ENABLED=true`. A server-owned deadline in `server/launch-clock.cjs` is `2026-10-26T09:00:00-04:00` (13:00 UTC). Routing middleware serves the countdown for all document paths, including direct booking, account and admin links; the API rejects application requests before opening. Only the read-only clock/config endpoints remain available, and config withholds Supabase identifiers before opening. No query parameter, local storage setting or device date bypasses the countdown. Assets remain publicly downloadable; this is a launch gate, not protection for sensitive records (RLS/auth continue protecting those).
+
+At the deadline, middleware passes through automatically with no redeploy and open countdown tabs verify server release before navigating home. `LAUNCH_LOGIN_ENABLED=true` opts into account API opening at the same deadline; Supabase email provider and signups require their own provider setup. `LAUNCH_HOLD=true` can keep account APIs closed after opening. Automatic emails, guest checkout/portal and payment-provider configuration retain their separate flags. Countdown expiry does not claim money was received or bypass agreement requirements.
+
+CAPTCHA setup was deferred by the user on October 22. Existing provider rate limits remain; do not report bot protection as configured. Remaining owner approvals, backup recovery and hosted/device rehearsal remain launch work.

@@ -1,3 +1,4 @@
+const {launchState,effectiveEnv}=require('./launch-clock.cjs');
 const { renderEmail } = require("./email-templates.cjs");
 const {handleGuest,secret:guestSecret,digest:guestDigest}=require("./guest-access.cjs");
 const { createClient } = require("@supabase/supabase-js");
@@ -38,8 +39,12 @@ function createHandler({
   env = process.env,
   clientFactory = createClient,
   fetchFile = fetch,
+  clock = Date.now,
 } = {}) {
+  const suppliedEnv=env;
   return async (req, res) => {
+    const env=effectiveEnv(suppliedEnv,clock());
+    const launch=launchState(suppliedEnv,clock());
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "no-referrer");
@@ -56,6 +61,8 @@ function createHandler({
       !!env.SUPABASE_ANON_KEY &&
       !!env.SUPABASE_SERVICE_ROLE_KEY;
     try {
+      if(route==='launch-status'&&req.method==='GET')return reply(200,launch);
+      if(launch.pending&&route!=='config')throw new HttpError(503,'Website and booking open October 26 at 9:00 AM Eastern.');
       if (route === "config") {
         if (req.method !== "GET")
           throw new HttpError(405, "Method not allowed");
@@ -65,8 +72,8 @@ function createHandler({
           siteMode: "launch",
           notificationsEnabled: configured && env.AUTH_ENABLED === "true" && env.NOTIFICATIONS_ENABLED === "true" && !!env.RESEND_API_KEY && !!env.CRON_SECRET,
           guestPortalEnabled: configured && env.AUTH_ENABLED === "true" && env.GUEST_PORTAL_ENABLED === "true",
-          url: configured ? env.SUPABASE_URL : null,
-          key: configured ? env.SUPABASE_ANON_KEY : null,
+          url: configured && !launch.pending ? env.SUPABASE_URL : null,
+          key: configured && !launch.pending ? env.SUPABASE_ANON_KEY : null,
           turnstileSiteKey: configured ? env.TURNSTILE_SITE_KEY || null : null,
           guestEnabled:
             configured &&

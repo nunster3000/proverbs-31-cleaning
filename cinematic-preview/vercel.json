@@ -53,5 +53,8 @@
       "path": "/api/notifications",
       "schedule": "*/5 * * * *"
     }
-  ]
+  ],
+  "proxy": {
+    "entrypoint": "proxy.ts"
+  }
 }

@@ -7,6 +7,7 @@ try {
 } catch {}
 const handler = require("./api.cjs").createHandler();
 const root = path.resolve("dist");
+const {launchState}=require("./launch-clock.cjs"),{countdownPage}=require("./countdown-page.cjs");
 const types = {
   ".html": "text/html",
   ".js": "text/javascript",
@@ -36,6 +37,7 @@ http
       }
       return;
     }
+    if(!new URL(req.url,'http://local').pathname.startsWith('/assets/')&&launchState().pending){res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'});res.end(countdownPage());return;}
     const filename = path.resolve(
       root,
       "." +
