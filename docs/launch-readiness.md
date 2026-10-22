@@ -96,3 +96,9 @@ Owner-access checks: full automated suite 127 passed, one optional PostgreSQL te
 - Temporarily granted the verified work account owner access with explicit approval, then used a fresh live owner-email sign-in link. The real owner workspace loaded with admin navigation and booking data access.
 - Removed that work account from private.owner_accounts immediately after verification. The owner query returned only gabriellejackson@proverbs31cleaningcoservices.info.
 - The existing test workspace automatically returned to Owner Access after revocation and displayed access unavailable. No business records or prices were changed in this test.
+
+### Timed launch boundary verification
+- Added tests exercising the actual middleware and public API configuration at one second and one millisecond before launch, exactly at launch, one millisecond afterward, and the next day.
+- Verified website, service, booking, login, and dashboard routes release together at October 26, 2026, 9:00 AM America/New_York (13:00 UTC), without redeployment. Public email-link requests permit new-user registration after release.
+- Existing countdown browser tests verify automatic navigation only after server confirmation, independent of the device wall clock. Temporary owner routes switch to normal login/workspace at launch.
+- 16 focused launch, owner-access, and login tests passed. Read-only production launch-status still reports the original deadline and pending=true. No live countdown, authentication settings, or production environment values changed in this verification.
