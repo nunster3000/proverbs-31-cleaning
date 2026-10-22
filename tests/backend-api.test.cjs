@@ -312,3 +312,17 @@ test('customer directory searches database across pages and applies account filt
  operations=[];assert.match((await call(h,{url:'/api/app?route=customer-history&id=bad',token:'valid'})).value.error,/Customer ID/);assert.equal(operations.length,0);
  const id='11111111-1111-4111-8111-111111111111';await call(h,{url:'/api/app?route=customer-history&id='+id+'&page=1',token:'valid'});assert.deepEqual(operations.find(x=>x[0]==='eq'),['eq','customer_id',id]);assert.deepEqual(operations.find(x=>x[0]==='range'),['range',20,39]);
 });
+test('launch preparation is owner-only while only published policies are public, including before sign-in opens',async()=>{
+ const calls=[];let owner=false;
+ const factory=()=>({auth:{getUser:async()=>({data:{user:{id:'verified',email_confirmed_at:'2026-10-22',is_anonymous:false}}})},rpc:async(name,args)=>{calls.push([name,args]);return {data:name==='is_owner'?owner:name==='api_public_policies'?null:{revision:0},error:null};}});
+ let h=createHandler({env:{...env,AUTH_ENABLED:'false'},clientFactory:factory});
+ assert.equal((await call(h,{url:'/api/app?route=public-policies'})).value,null);
+ assert.match((await call(h,{url:'/api/app?route=launch-preparation',token:'verified'})).value.error,/not enabled/);
+ assert.ok(!calls.some(([n])=>n==='api_launch_preparation'));
+ h=createHandler({env,clientFactory:factory});
+ assert.match((await call(h,{url:'/api/app?route=launch-preparation',token:'verified'})).value.error,/Owner access/);
+ assert.ok(!calls.some(([n])=>n==='api_launch_preparation'));
+ owner=true;const result=(await call(h,{url:'/api/app?route=launch-preparation',token:'verified',method:'POST',origin:'https://example.com',body:{action:'save_operations',revision:3,data:{operations:{backup_preference:'discuss'}}}})).value;
+ assert.equal(result.revision,0);assert.equal(result.technical.automaticEmails,false);
+ assert.deepEqual(calls.at(-1),['api_launch_preparation',{p_action:'save_operations',p_data:{operations:{backup_preference:'discuss'}},p_expected:3}]);
+});

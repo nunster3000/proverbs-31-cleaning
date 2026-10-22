@@ -3,6 +3,7 @@
     $ = (s) => document.querySelector(s);
   const previewUrls = new Set();
   const clearPreviews = () => {previewUrls.forEach(url => URL.revokeObjectURL(url));previewUrls.clear();};
+  let navigateWorkspace;
   let autoSync,recordsEpoch=0,mutations=0,reloading=0,workspaceDirty=false,dialogDirty=false;
   let me,
     records = [],
@@ -677,6 +678,8 @@
       P31Social.platforms.forEach(p=>{const group=n('fieldset');group.append(n('legend',p.label));const {visible,url}=socialFields[p.id];group.append(label('Show '+p.label+' icon',visible),label(p.label+' page URL',url));socials.append(group);});
       pageForm.insertBefore(socials,pageForm.lastElementChild);
       root.append(box);
+    } else if (view === "Launch preparation") {
+      root.append(P31Launch.render({api:L.api,navigate:name=>navigateWorkspace(name)}));
     } else if (view === "Forms & agreements") {
       root.append(P31Access.editor({api:L.api,save:fn=>act(fn,"Access form published.")}));
     } else if (view === "Availability") {
@@ -1558,6 +1561,7 @@
             "Proverbs 31 Cal",
             "Availability",
             "Pricing",
+            "Launch preparation",
             "Website content",
             "Forms & agreements",
             "Activity",
@@ -1574,6 +1578,7 @@
       $('#workspace-title').focus({preventScroll:true});
       document.querySelectorAll('[data-mobile-view]').forEach(b=>b.setAttribute('aria-current',b.dataset.mobileView===view || b.dataset.mobileView==='More' && !['Bookings','Proverbs 31 Cal','Walkthroughs','Payments'].includes(view)?'page':'false'));
     };
+    navigateWorkspace=selectView;
     $('#dashboard-home').hidden=false;
     $('#dashboard-home').onclick=()=>selectView('Bookings');
     document.dispatchEvent(new CustomEvent('p31:authenticated'));

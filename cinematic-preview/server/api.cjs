@@ -125,6 +125,7 @@ function createHandler({
         if (error) throw error;
         return data;
       };
+      if(route==='public-policies'&&req.method==='GET')return reply(200,await rpc('api_public_policies',{}));
       if (route === 'site-content' && req.method === 'GET') {
         const row=await read(db.from('site_content').select('*').single());
         return reply(200,{...row,photo_url:row.photo_path?db.storage.from('site-media').getPublicUrl(row.photo_path).data.publicUrl:null});
@@ -166,6 +167,12 @@ function createHandler({
       if (!user.is_anonymous && !user.email_confirmed_at)
         throw new HttpError(403, "Verify your email before continuing.");
       const owner = !!(await rpc("is_owner", {}));
+      if(route==='launch-preparation'){
+        if(!owner)throw new HttpError(403,'Owner access required');
+        if(!['GET','POST'].includes(req.method))throw new HttpError(405,'Method not allowed');
+        const prepared=await rpc('api_launch_preparation',{p_action:req.method==='GET'?'read':body.action,p_data:body.data||{},p_expected:body.revision??null});
+        return reply(200,{...prepared,technical:{publicSignIn:env.AUTH_ENABLED==='true',automaticEmails:env.NOTIFICATIONS_ENABLED==='true',guestAccess:env.GUEST_PORTAL_ENABLED==='true',captchaConfigured:!!env.TURNSTILE_SITE_KEY,processorConnected:false}});
+      }
       if (route === "me" && req.method === "GET")
         return reply(200, {
           user: {

@@ -37,6 +37,7 @@ async function createAgreementPdf(r,{loadFont}={}){
  line('1. Client information and visit details',{size:12,face:bold});
  for(const [label,value] of details(r.agreement_snapshot,r.answers))line(label+': '+value);
  addPage();line('Agreement terms',{size:14,face:bold,gap:10});for(const paragraph of r.form.body.split('\n')){const heading=/^\d+\. /.test(paragraph);if(heading&&y<130)addPage();line(paragraph,{face:heading?bold:font});}
+ if(r.agreement_snapshot?.policy_snapshot){addPage();line('Business policies attached to this agreement',{size:14,face:bold,gap:10});for(const[key,value]of Object.entries(r.agreement_snapshot.policy_snapshot)){if(y<130)addPage();line(key.replaceAll('_',' '),{size:12,face:bold});line(value);}}
  if(r.form.configuration?.questions){if(y<120)addPage();y-=10;line('Questionnaire responses',{size:12,face:bold});for(const q of r.form.configuration.questions)line(q.label+': '+(r.answers?.[q.id]||'Not provided'));}
  if(y<(customScript?330:280))addPage();y-=10;line('Electronic signatures and record',{size:12,face:bold});
  line('Client / authorized occupant: '+r.signer_name,{size:15,face:clientScript});line('Customer signed: '+time(r.signed_at));
