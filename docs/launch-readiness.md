@@ -91,3 +91,8 @@ Owner-access checks: full automated suite 127 passed, one optional PostgreSQL te
 - Corrected both authentication email templates to honor Supabase's approved RedirectTo callback, with the canonical sign-in fallback. Runtime picked up the saved settings after project restart.
 - Signed out both test sessions and removed the temporary localhost:8797 callback. Production callbacks are the canonical sign-in and temporary owner sign-in pages.
 - Public config still reports authentication, automatic notifications, and guest access disabled before the October 26, 2026, 9 AM Eastern opening. Owner prelaunch access requires a verified database owner; no test customer was granted admin privileges.
+
+### Temporary owner login verification
+- Temporarily granted the verified work account owner access with explicit approval, then used a fresh live owner-email sign-in link. The real owner workspace loaded with admin navigation and booking data access.
+- Removed that work account from private.owner_accounts immediately after verification. The owner query returned only gabriellejackson@proverbs31cleaningcoservices.info.
+- The existing test workspace automatically returned to Owner Access after revocation and displayed access unavailable. No business records or prices were changed in this test.
