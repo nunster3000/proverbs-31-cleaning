@@ -53,3 +53,24 @@ Browser previews were checked for sign-in and quote emails at phone and desktop 
 The first branded design preview was sent once through Resend’s draft-template test sender to khris.nun@proverbs31cleaningcoservices.info and received in Zoho on October 22. The subject was “[TEST] Design preview · Proverbs 31 Cleaning Company”; all booking details were fictional. Zoho initially blocked external images; displaying images for that message revealed the logo. No automatic image-download preference was enabled. The preview remains an unpublished Resend draft.
 
 The shared logo asset is now the email-specific 352px JPEG (~50 KB) instead of the original 1254px PNG (~1.1 MB), including Magic Link and Confirm Signup templates. This reduces transfer size by about 96% while preserving the original website asset. Recipient-controlled image blocking still applies. A regression check caps the email asset below 60 KB.
+
+### Production event routing · October 22, 2026
+
+Migration 019 was applied and verified in the business database. It adds immutable per-event context to outbox rows and updates the existing owner booking-action function without changing role grants, authentication flags, or delivery flags. No live customer records or notifications were created for verification; the production pending queue was zero.
+
+| Trigger | Email design / outbox kind |
+| --- | --- |
+| Booking request created | Request received (`booking_requested`); does not claim payment or approval |
+| Gabrielle approves deposit-paid, reviewed walkthrough | Booking confirmation (`booking_confirmed`) |
+| Owner prepares reviewed quote | Quote ready (`quote_ready`) |
+| Owner updates visit progress | Neutral booking update (`booking_updated`) |
+| Manual completion or first completed evidence upload | Cleaning complete (`service_completed`); later uploads/retries do not duplicate it |
+| Owner issues final balance after completion and quote approval | Final balance (`final_balance_ready`); snapshot records invoice issued, repeated issuance does not duplicate it |
+| Approved reschedule request or actual owner date/block change | Rescheduling (`booking_rescheduled`), including previous and updated visit; new access agreement required |
+| Approved cancellation request or owner cancellation | Cancellation (`booking_cancelled`); contact action, no fresh guest grant or refund/fee promise |
+| Gabrielle declines a cancellation/reschedule request | Request reviewed (`change_request_declined`); existing booking stays unchanged |
+| Email sign-in / account confirmation | Supabase Magic Link / Confirm Signup branded templates; email provider and public sign-in remain disabled |
+
+Guest notices use the same event designs, with an expiring one-booking private link only when guest delivery is enabled. Cancelled guests receive the contact action. Email recipient, booking snapshot, selected template and old visit context are recorded server-side; dispatch cannot run while public sign-in or notification delivery is disabled. Resend design-preview drafts are not used as automatic templates—the shared versioned renderer is the source of truth.
+
+Targeted tests cover request creation, confirmed-only messaging, quote preparation, approved/declined changes, direct rescheduling, duplicate decisions, manual/upload completion, late evidence, invoice issuance, guest-link routing, immutable queue snapshots, and disabled dispatch. This verifies queue-to-render behavior without enabling or sending automatic emails.

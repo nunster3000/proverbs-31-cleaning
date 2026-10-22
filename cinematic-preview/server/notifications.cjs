@@ -26,12 +26,12 @@ function createNotificationHandler({env=process.env,clientFactory=createClient,s
     let provider=null,error=null;
     try{
      let guestUrl;
-     if(!job.snapshot.account_enabled&&env.GUEST_PORTAL_ENABLED==='true'&&env.GUEST_LINK_SECRET){
+     if(job.snapshot.booking.status!=='cancelled'&&!job.snapshot.account_enabled&&env.GUEST_PORTAL_ENABLED==='true'&&env.GUEST_LINK_SECRET){
       const token=createHmac('sha256',env.GUEST_LINK_SECRET).update(job.id).digest('base64url');
       const linked=await rpc('api_notification_guest_link',{p_id:job.id,p_lease:job.lease_id,p_hash:createHash('sha256').update(token).digest('hex')});
       if(linked)guestUrl='https://www.proverbs31cleaningcoservices.info/guest.html#access='+token;
      }
-     const message=renderEmail(job.kind,job.snapshot.booking,{accountEnabled:job.snapshot.account_enabled,guestUrl});
+     const message=renderEmail(job.kind,job.snapshot.booking,{accountEnabled:job.snapshot.account_enabled,guestUrl,eventDetails:job.event_details||{}});
      const response=await send('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+env.RESEND_API_KEY,'Content-Type':'application/json','Idempotency-Key':'p31-notification-'+job.id},body:JSON.stringify({from:'Proverbs 31 Cleaning Company <gabriellejackson@proverbs31cleaningcoservices.info>',reply_to:'gabriellejackson@proverbs31cleaningcoservices.info',to:[job.recipient],...message}),signal:AbortSignal.timeout(15000)});
      if(!response.ok)throw Error('Email provider rejected delivery ('+response.status+')');
      provider=(await response.json()).id;if(!provider)throw Error('Email provider did not acknowledge delivery');
