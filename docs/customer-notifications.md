@@ -41,3 +41,11 @@ The notification credential is independent of Supabase SMTP. Its replacement rem
 The authorized setup email was accepted by Resend through the production website on October 21, 2026 (provider ID `01a16175-d199-7300-9a38-ed721c0ed2b1`). The dedicated setup-test switch was returned to false afterward. Normal customer dispatch and public authentication remain disabled. Final inbox delivery is checked separately in Resend.
 
 Resend reported the setup message Delivered. Final production checks confirmed: setup-test endpoint 403, scheduled dispatcher disabled, public sign-in false, notifications false, guest access false, Supabase email provider false, and signup disabled. The temporary local test secret file was removed. The unused original notification key was permanently revoked with approval; only the working, domain-restricted replacement and the separate Supabase Auth key remain. The separate Supabase Auth key was not changed.
+
+### Branded email design · October 22, 2026
+
+The Magic Link and Confirm Signup templates were saved in the business Supabase project with the shared cream, gold, and espresso layout and existing company logo. Both retain the canonical token-hash callback, one-use/one-hour wording, and passwordless link flow. Subjects: “Your secure sign-in link · Proverbs 31” and “Welcome · Confirm your Proverbs 31 account”. Regenerate their versioned HTML with `node cinematic-preview/server/auth-email-templates.cjs` after editing the shared layout.
+
+The five queued customer notifications use the same table-based layout, inline styles, logo alt text, phone breakpoint, booking summary, and full-width action button. Plain-text messages remain available. Guest links retain their one-use/30-minute wording and restricted destination. No client data is included in logo image URLs.
+
+Browser previews were checked for sign-in and quote emails at phone and desktop widths; automated checks cover callback preservation, HTML escaping, recipient routing, amounts, and disabled delivery gates. Actual Gmail/Outlook/Apple Mail inbox rendering remains a controlled delivery check before launch. No emails were sent for this design review. Public sign-in, signup, guest access, and notifications remain disabled.
