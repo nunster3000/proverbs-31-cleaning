@@ -12,7 +12,7 @@ The full regression baseline passed 129 tests with one optional native PostgreSQ
 
 ## Hosted upload rehearsal — prepared, awaiting browser availability
 
-Explicit approval covers a temporary work-account owner role, localhost:8799 callback, an existing server credential in a local private file, labeled fixture bookings/media and their permanent cleanup. The work-account role was granted; the callback dialog is not yet verified saved. No persistent fixture booking or media has been created.
+Explicit approval covers a temporary work-account owner role, localhost:8799 callback, an existing server credential in a local private file, labeled fixture bookings/media and their permanent cleanup. The work-account role was granted; the callback dialog is not yet verified saved. No persistent fixture booking or media has been created. The key control returned masked text rather than a usable credential; the unusable local file was removed and the harness stopped. Secure key staging remains pending.
 
 `ops/private-hosted-rehearsal.cjs` binds only 127.0.0.1:8799 and verifies both approved test emails with Supabase. The server key and captured session tokens are never sent to the browser or logged. Browser mutations are denied; the rehearsal executes a fixed sequence. Public launch settings are not changed. Automatic notifications and guest checkout remain disabled. Temporary guest portal use exists only in the loopback server configuration.
 
