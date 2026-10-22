@@ -29,3 +29,9 @@ When the guest portal is enabled, guest notification emails can include a one-us
 ## Remaining launch verification
 
 Apply migration 015 with approval, configure the scoped Resend key and cron/guest secrets, edit Supabase email templates, and conduct controlled deliveries to approved recipients. Keep public sign-in, signup, guest access and notifications off throughout. Verify inbox delivery, expired/used links, role routing, retry idempotency and real cron authentication. Form wording and payment processing remain separate launch gates.
+
+## Connected configuration — October 21, 2026
+
+Migration 015 was applied and production permissions verified: anonymous/customer queue claims denied, service-role claims allowed, and zero queued messages at connection time. Supabase Magic Link and Confirm Signup templates now match the versioned templates in `supabase/email-templates/`. The notification Resend key and cron/guest secrets are Production-only Vercel secrets. Public sign-in, signup, guest access, and normal notifications remain disabled.
+
+An isolated POST `/api/notifications?setup_test=true` check is available only with the cron bearer secret and an explicit temporary `NOTIFICATION_SETUP_TEST_ENABLED=true` switch. It sends solely to the approved work email, never reads the customer queue, and uses a stable Resend idempotency key. Return this switch to false after the delivery check. No live booking or payment is created by this test.
