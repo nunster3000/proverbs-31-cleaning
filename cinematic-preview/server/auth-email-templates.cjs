@@ -1,5 +1,6 @@
 const {emailLayout,paragraph}=require('./email-layout.cjs');
-const url='https://www.proverbs31cleaningcoservices.info/sign-in.html?token_hash={{ .TokenHash }}&amp;type=email';
+// RedirectTo is validated against Supabase's exact callback allowlist.
+const url='{{ if .RedirectTo }}{{ .RedirectTo }}{{ else }}https://www.proverbs31cleaningcoservices.info/sign-in.html{{ end }}?token_hash={{ .TokenHash }}&amp;type=email';
 function renderAuthEmail(kind){
  if(!['magic-link','confirm-signup'].includes(kind))throw Error('Unsupported authentication email');
  const signup=kind==='confirm-signup';
