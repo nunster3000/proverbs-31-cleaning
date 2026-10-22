@@ -3,14 +3,15 @@ const fs=require('node:fs');
 const {createClient}=require('../cinematic-preview/node_modules/@supabase/supabase-js');
 const valid=x=>typeof x==='string'&&/^[a-f0-9-]{36}$/i.test(x);
 function cleanupSql(ledger){
- for(const id of [...ledger.bookings,...ledger.customers])if(!valid(id))throw Error('Invalid fixture ID');
+ for(const id of [...ledger.bookings,...ledger.customers,...(ledger.scheduleAuditIds||[])])if(!valid(id))throw Error('Invalid fixture ID');
  const ids=ledger.bookings.length?ledger.bookings.map(x=>"'"+x+"'::uuid").join(','):"'00000000-0000-0000-0000-000000000000'::uuid";
  const customerIds=ledger.customers.filter(id=>!ledger.beforeCustomers.includes(id));
  let sql=`begin;\nset local lock_timeout='3s';\n`;
  sql+=`delete from private.admin_notice_reads where event_id in(select id from public.audit_events where booking_id in(${ids}));\n`;
  sql+=`delete from private.customer_notice_reads where event_id in(select id from public.audit_events where booking_id in(${ids}));\n`;
- for(const table of ['private.guest_booking_access','public.notification_outbox','public.access_signatures','public.quote_adjustments','public.payment_records','public.booking_requests','public.walkthrough_files','public.owner_notes','public.audit_events'])sql+=`delete from ${table} where booking_id in(${ids});\n`;
+ for(const table of ['public.notification_outbox','public.access_signatures','public.quote_adjustments','public.payment_records','public.booking_requests','public.walkthrough_files','public.owner_notes','public.audit_events','private.guest_booking_access'])sql+=`delete from ${table} where booking_id in(${ids});\n`;
  sql+=`delete from public.bookings where id in(${ids});\n`;
+ for(const id of ledger.scheduleAuditIds||[])sql+=`delete from private.admin_notice_reads where event_id='${id}'::uuid; delete from private.customer_notice_reads where event_id='${id}'::uuid; delete from public.audit_events where id='${id}'::uuid;\n`;
  for(const id of customerIds)sql+=`delete from public.customers where id='${id}'::uuid and not exists(select 1 from public.bookings where customer_id='${id}'::uuid);\n`;
  if(ledger.date){
   if(!/^\d{4}-\d{2}-\d{2}$/.test(ledger.date))throw Error('Invalid date');

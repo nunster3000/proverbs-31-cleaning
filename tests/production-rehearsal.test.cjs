@@ -1,8 +1,8 @@
 const {test,after}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 const localRequire=require('node:module').createRequire(path.resolve('tests/backend-database.test.cjs'));
 const source=fs.readFileSync('tests/backend-database.test.cjs','utf8').split('let booking;')[0];
-const box={require:n=>n==='node:test'?{test(){},after(){}}:localRequire(n),module:{exports:{}},Blob,WebAssembly,console};vm.runInNewContext(source+'\nmodule.exports={db,ready};',box);
-const {db,ready}=box.module.exports;after(()=>db.close());
+const box={require:n=>n==='node:test'?{test(){},after(){}}:localRequire(n),module:{exports:{}},Blob,WebAssembly,console};vm.runInNewContext(source+'\nmodule.exports={db,ready,login,rpc};',box);
+const {db,ready,login,rpc}=box.module.exports;after(()=>db.close());
 test('hosted rehearsal SQL exercises real role checks and leaves no records or approvals behind',async()=>{
  await ready;await db.exec('reset role');
  for(const f of fs.readdirSync('cinematic-preview/supabase/migrations').filter(n=>/^(01[1-9]|020)/.test(n)).sort())await db.exec(fs.readFileSync('cinematic-preview/supabase/migrations/'+f,'utf8'));
@@ -12,4 +12,21 @@ test('hosted rehearsal SQL exercises real role checks and leaves no records or a
  assert.equal(passed.passed_database_rehearsal_checks.length,11);
  for(const table of ['bookings','customers','notification_outbox','calendar_days','access_forms','access_signatures'])assert.equal((await db.query('select count(*)::int n from public.'+table)).rows[0].n,0,table);
  assert.equal((await db.query('select count(*)::int n from public.audit_events')).rows[0].n,before);
+});
+test('exact-ID rehearsal cleanup preserves unrelated bookings, customers and their queued notifications',async()=>{
+ await ready;await login('alice');
+ const date=require('./helpers/booking-date.cjs').bookingDate(45),payload={name:'Cleanup QA',email:'alice@example.com',address:'Isolated QA address',service:'standard',space_id:3,date,arrival:'morning'};
+ const fixture=(await rpc('api_create_booking',[JSON.stringify(payload),crypto.randomUUID()]))[0];
+ const unrelated=(await rpc('api_create_booking',[JSON.stringify({...payload,arrival:'afternoon'}),crypto.randomUUID()]))[0];
+ await db.exec('reset role');
+ const grant=(await db.query("insert into private.guest_booking_access(booking_id,recipient_email,link_hash) values($1,'isolated@example.invalid',repeat('a',64)) returning id",[fixture.id])).rows[0];
+ await db.query("insert into public.walkthrough_files(booking_id,guest_access_id,path,filename,mime,bytes,room) values($1,$2,$3,'isolated.jpg','image/jpeg',4,'Kitchen')",[fixture.id,grant.id,fixture.id+'/'+crypto.randomUUID()]);
+ const {cleanupSql}=require('../ops/rehearsal-cleanup.cjs');
+ await db.exec(cleanupSql({bookings:[fixture.id],customers:[fixture.customer_id],beforeCustomers:[],files:[]}));
+ assert.equal((await db.query('select id from public.bookings where id=$1',[fixture.id])).rows.length,0);
+ assert.equal((await db.query('select id from public.bookings where id=$1',[unrelated.id])).rows.length,1);
+ assert.equal((await db.query('select id from public.customers where id=$1',[unrelated.customer_id])).rows.length,1);
+ assert.equal((await db.query('select id from public.notification_outbox where booking_id=$1',[fixture.id])).rows.length,0);
+ assert.equal((await db.query('select id from public.notification_outbox where booking_id=$1',[unrelated.id])).rows.length,1);
+ assert.throws(()=>cleanupSql({bookings:["'; delete from public.bookings;--"],customers:[],beforeCustomers:[]}),/Invalid fixture/);
 });

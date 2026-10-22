@@ -1,5 +1,7 @@
 # Launch readiness review — October 22, 2026
 
+Current checkpoint: [October 22 launch status](launch-status-2026-10-22.md). The audit history below includes earlier disabled-provider and untested-hosted states; use the checkpoint for the current state. Production upload rehearsal and cleanup are now complete. Native concurrency and encrypted QA recovery passed. Production backup activation, approved-policy retention, actual approved-form signing and physical-device handover remain dependencies.
+
 ## Completed
 
 - Removed the visible “About this demonstration” privacy heading.

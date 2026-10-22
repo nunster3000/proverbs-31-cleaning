@@ -1,9 +1,11 @@
 const {timingSafeEqual,createHmac,createHash}=require('node:crypto');
 const {createClient}=require('@supabase/supabase-js');
 const {renderEmail}=require('./email-templates.cjs');
+const {effectiveEnv}=require('./launch-clock.cjs');
 const same=(a,b)=>typeof a==='string'&&typeof b==='string'&&Buffer.byteLength(a)===Buffer.byteLength(b)&&a.length>0&&timingSafeEqual(Buffer.from(a),Buffer.from(b));
-function createNotificationHandler({env=process.env,clientFactory=createClient,send=fetch}={}){
+function createNotificationHandler({env:suppliedEnv=process.env,clientFactory=createClient,send=fetch,clock=()=>Date.now()}={}){
  return async(req,res)=>{
+  const env=effectiveEnv(suppliedEnv,clock());
   const reply=(status,value)=>{res.statusCode=status;res.setHeader('Cache-Control','no-store');res.setHeader('Content-Type','application/json');res.end(JSON.stringify(value));};
   if(!['GET','POST'].includes(req.method))return reply(405,{error:'Method not allowed'});
   if(!same(req.headers.authorization,'Bearer '+(env.CRON_SECRET||'')) || !env.CRON_SECRET)return reply(401,{error:'Unauthorized'});

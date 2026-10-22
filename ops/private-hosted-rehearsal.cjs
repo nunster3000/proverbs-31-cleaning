@@ -8,7 +8,8 @@ const root=path.resolve('cinematic-preview/dist'),origin='http://127.0.0.1:8799'
 const ownerEmail='khris.nun@proverbs31cleaningcoservices.info',customerEmail='khris.nunnally@outlook.com';
 const url='https://mokhzraxcbrmzpvedhxz.supabase.co',key='sb_publishable_QiDkIIHlNQ3fz6B_QaiCDw_8ED1IvPZ';
 const serverKey=fs.readFileSync('/tmp/p31-rehearsal-server-key','utf8').trim();
-if(!serverKey.startsWith('sb_secret_')||serverKey.length<30)throw Error('Existing server key not available');
+const legacyRole=(()=>{try{return JSON.parse(Buffer.from(serverKey.split('.')[1],'base64url').toString()).role}catch{return null}})();
+if(!(serverKey.startsWith('sb_secret_')&&serverKey.length>=30)&&legacyRole!=='service_role')throw Error('Existing server key not available');
 const env={BACKEND_ENABLED:'true',AUTH_ENABLED:'true',LAUNCH_COUNTDOWN_ENABLED:'false',GUEST_CHECKOUT_ENABLED:'false',GUEST_PORTAL_ENABLED:'true',NOTIFICATIONS_ENABLED:'false',SUPABASE_URL:url,SUPABASE_ANON_KEY:key,SUPABASE_SERVICE_ROLE_KEY:serverKey,APP_ORIGIN:origin,NODE_ENV:'test'};
 const options={auth:{persistSession:false,autoRefreshToken:false}},auth=createClient(url,key,options),service=createClient(url,serverKey,options),handler=createHandler({env});
 const sessions=new Map(),ledger={tag:'P31 REHEARSAL '+randomUUID(),bookings:[],files:[],customers:[],beforeCustomers:[],calendar:null,checks:[],phase:'Waiting for both test accounts'};
