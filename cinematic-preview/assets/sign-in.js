@@ -24,16 +24,6 @@
       history.replaceState(null, '', 'sign-in.html');
       status.textContent = 'This sign-in link could not be verified. Request a new email below.';
     }
-    const { data: { session }, error } = await P31Live.client.auth.getSession();
-    if (error) throw error;
-    if (session && !session.user.is_anonymous) {
-      if (await openWorkspace()) return;
-    }
-    // A verified email link in another tab can establish this session.
-    P31Live.client.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session && !session.user.is_anonymous)
-        setTimeout(() => openWorkspace().catch(e => status.textContent = e.message), 0);
-    });
     button.disabled = false;
     email.disabled = false;
     form.onsubmit = async event => {
@@ -49,6 +39,17 @@
         busy = false; button.disabled = false;
       }
     };
+    const { data: { session }, error } = await P31Live.client.auth.getSession();
+    if (error) throw error;
+    if (session && !session.user.is_anonymous) {
+      if (await openWorkspace()) return;
+    }
+    // A verified email link in another tab can establish this session.
+    P31Live.client.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session && !session.user.is_anonymous)
+        setTimeout(() => openWorkspace().catch(e => status.textContent = e.message), 0);
+    });
+
   } catch {
     status.textContent = 'Account access is temporarily unavailable. Please try again later or contact us.';
   }

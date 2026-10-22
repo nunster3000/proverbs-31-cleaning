@@ -42,8 +42,8 @@ test('successful email verification checks the server role before entering the a
  const p=await portal();await p.form.onsubmit({preventDefault(){}});
  assert.deepEqual(p.calls,['me']);assert.deepEqual(p.redirects,['workspace.html']);
 });
-test('authentication failure keeps the portal closed',async()=>{
- const p=await portal({authError:true});assert.equal(p.button.disabled,true);
+test('authentication failure never opens the dashboard and allows requesting a fresh email link',async()=>{
+ const p=await portal({authError:true});assert.equal(p.button.disabled,false);assert.equal(typeof p.form.onsubmit,'function');
  assert.match(p.status.textContent,/temporarily unavailable/);assert.deepEqual(p.redirects,[]);
 });
 test('retired destinations contain no demo records and planner scripts remain syntactically valid',()=>{
