@@ -7,6 +7,14 @@ function createNotificationHandler({env=process.env,clientFactory=createClient,s
   const reply=(status,value)=>{res.statusCode=status;res.setHeader('Cache-Control','no-store');res.setHeader('Content-Type','application/json');res.end(JSON.stringify(value));};
   if(!['GET','POST'].includes(req.method))return reply(405,{error:'Method not allowed'});
   if(!same(req.headers.authorization,'Bearer '+(env.CRON_SECRET||'')) || !env.CRON_SECRET)return reply(401,{error:'Unauthorized'});
+  // A deliberate, cron-authenticated setup check; never draws from the customer queue.
+  if(req.method==='POST' && new URL(req.url,'https://internal.local').searchParams.get('setup_test')==='true'){
+   if(env.NOTIFICATION_SETUP_TEST_ENABLED!=='true'||!env.RESEND_API_KEY)return reply(403,{error:'Setup test is disabled'});
+   try{
+    const r=await send('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+env.RESEND_API_KEY,'Content-Type':'application/json','Idempotency-Key':'p31-notification-setup-2026-10-21'},body:JSON.stringify({from:'Proverbs 31 Cleaning Company <gabriellejackson@proverbs31cleaningcoservices.info>',to:['khris.nun@proverbs31cleaningcoservices.info'],subject:'Proverbs 31 · Notification delivery setup test',text:'This is the authorized notification setup test from the Proverbs 31 website. No customer booking was created or changed. Public sign-in and automatic customer notifications remain disabled.'}),signal:AbortSignal.timeout(15000)});
+    const data=await r.json();if(!r.ok||!data.id)throw Error('Delivery unavailable');return reply(200,{accepted:true,provider_id:data.id});
+   }catch{return reply(503,{error:'Setup email was not acknowledged'});}
+  }
   if(env.AUTH_ENABLED!=='true'||env.NOTIFICATIONS_ENABLED!=='true')return reply(200,{enabled:false,sent:0});
   if(!env.RESEND_API_KEY||!env.SUPABASE_SERVICE_ROLE_KEY)return reply(503,{error:'Notification delivery is not configured'});
   const db=clientFactory(env.SUPABASE_URL,env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
