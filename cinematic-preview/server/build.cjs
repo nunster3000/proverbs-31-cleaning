@@ -18,3 +18,5 @@ require('esbuild').buildSync({
   format: 'iife', outfile: 'dist/assets/heic-converter.js',
 });
 fs.copyFileSync('node_modules/heic-to/LICENSE', 'dist/assets/heic-to-LICENSE.txt');
+
+require("esbuild").buildSync({entryPoints:["server/agreement-pdf-entry.js"],bundle:true,minify:true,format:"iife",outfile:"dist/assets/agreement-pdf.js"});

@@ -30,7 +30,7 @@ async function handleGuest({req,res,route,body,url,env,clientFactory,reply,fetch
   const storage=service.storage.from('walkthroughs');
   if(route==='guest-view' && req.method==='GET'){reply(200,await call('view'));return true;}
   if(route==='guest-approve' && req.method==='POST'){reply(200,await call('approve',{revision:body.revision,consent:body.consent===true}));return true;}
-  if(route==='guest-sign' && req.method==='POST'){reply(201,await call('sign',{form_id:body.form_id,visit:body.visit,name:body.name,consent:body.consent===true,electronic:body.electronic===true}));return true;}
+  if(route==='guest-sign' && req.method==='POST'){reply(201,await call('sign',{form_id:body.form_id,visit:body.visit,name:body.name,consent:body.consent===true,electronic:body.electronic===true,answers:body.answers || {}}));return true;}
   if(route==='guest-reserve' && req.method==='POST'){
     const file=await call('reserve',body.file || {});const signed=await storage.createSignedUploadUrl(file.path);if(signed.error)throw signed.error;
     const destination=new URL(signed.data.signedUrl);if(destination.origin!==new URL(env.SUPABASE_URL).origin || !destination.pathname.startsWith('/storage/v1/object/upload/sign/'))fail(500,'Upload destination unavailable');

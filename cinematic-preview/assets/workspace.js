@@ -677,7 +677,7 @@
       P31Social.platforms.forEach(p=>{const group=n('fieldset');group.append(n('legend',p.label));const {visible,url}=socialFields[p.id];group.append(label('Show '+p.label+' icon',visible),label(p.label+' page URL',url));socials.append(group);});
       pageForm.insertBefore(socials,pageForm.lastElementChild);
       root.append(box);
-    } else if (view === "Access authorization") {
+    } else if (view === "Forms & agreements") {
       root.append(P31Access.editor({api:L.api,save:fn=>act(fn,"Access form published.")}));
     } else if (view === "Availability") {
       const c = section("Working days and arrival windows"),
@@ -1559,7 +1559,7 @@
             "Availability",
             "Pricing",
             "Website content",
-            "Access authorization",
+            "Forms & agreements",
             "Activity",
           ]
         : ["Bookings", "Walkthroughs", "Payments", "My Profile"];

@@ -12,7 +12,8 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.0.0",
-    "heic-to": "1.6.6"
+    "heic-to": "1.6.6",
+    "pdf-lib": "^1.17.1"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.3.0",
