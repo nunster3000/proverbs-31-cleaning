@@ -14,7 +14,7 @@ function renderEmail(kind, booking, {accountEnabled=false,guestUrl}={}) {
   const total=booking.final_cents ?? q.total_cents;
   const [subject,intro]=({
     booking_requested:['Your cleaning request was received','We received your cleaning request. Your starting estimate is subject to walkthrough review and final pricing approval. This request does not confirm payment.'],
-    booking_updated:['Your cleaning booking was updated','Gabrielle updated your booking. Review the current visit details below.'],
+    booking_updated:booking.status==='confirmed'?['Your cleaning visit is confirmed','Gabrielle has reviewed your walkthrough and confirmed your cleaning visit. Review the details and complete any remaining steps before your visit.']:['Your cleaning booking was updated','Gabrielle updated your booking. Review the current visit details below.'],
     quote_ready:['Your cleaning quote is ready to review','Your walkthrough has been reviewed. Please review the total and any adjustments before approving your quote.'],
     service_completed:['Your cleaning visit is complete','Gabrielle has marked your cleaning visit complete. Any remaining balance is shown separately when issued.'],
     final_balance_ready:['Your cleaning balance is ready','Your final balance has been issued. Contact Gabrielle to arrange payment; online payment processing is not available yet.'],
@@ -36,7 +36,7 @@ function renderEmail(kind, booking, {accountEnabled=false,guestUrl}={}) {
   if(kind==='final_balance_ready')rows.push(['Remaining balance',money(Math.max(0,total-paid))]);
   rows.push(['Booking reference',booking.id]);
   const note=guestUrl?'This private link is for your booking only. It expires in 30 minutes and can be used once. Please do not forward it.':accountEnabled?'Sign in securely to see the latest details and any actions needed for your visit.':'Please include your booking reference when contacting Gabrielle.';
-  const headings={booking_requested:'A little care is on its way.',booking_updated:'Your visit, up to date.',quote_ready:'Your quote is ready.',service_completed:'Your home, cared for.',final_balance_ready:'Your final balance is ready.'};
+  const headings={booking_requested:'A little care is on its way.',booking_updated:booking.status==='confirmed'?'Your visit is confirmed.':'Your visit, up to date.',quote_ready:'Your quote is ready.',service_completed:'Your home, cared for.',final_balance_ready:'Your final balance is ready.'};
   return {subject,text:lines.join('\n\n')+'\n\n'+cta+': '+url,
     html:emailLayout({preheader:subject,eyebrow:kind==='quote_ready'?'Review your quote':kind==='final_balance_ready'?'Your payment summary':'Your cleaning visit',title:headings[kind],content:paragraph(intro)+detailTable(rows)+paragraph('* Starting prices are estimates. Final pricing is subject to walkthrough review and your approval.'),cta,url,note})};
 }
