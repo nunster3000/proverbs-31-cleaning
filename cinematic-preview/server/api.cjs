@@ -62,18 +62,22 @@ function createHandler({
       !!env.SUPABASE_SERVICE_ROLE_KEY;
     try {
       if(route==='launch-status'&&req.method==='GET')return reply(200,launch);
-      if(launch.pending&&route!=='config')throw new HttpError(503,'Website and booking open October 26 at 9:00 AM Eastern.');
-      if (route === "config") {
+      const ownerBootstrap=route==='owner-config'&&launch.pending&&suppliedEnv.OWNER_PRELAUNCH_ENABLED==='true'&&suppliedEnv.LAUNCH_HOLD!=='true';
+      const ownerEntrance=launch.pending&&suppliedEnv.OWNER_PRELAUNCH_ENABLED==='true'&&suppliedEnv.LAUNCH_HOLD!=='true'&&req.headers['x-p31-owner-preview']==='1';
+      if(route==='owner-config'&&!ownerBootstrap)throw new HttpError(404,'Temporary owner access is not available.');
+      if(launch.pending&&route!=='config'&&!ownerBootstrap&&!ownerEntrance)throw new HttpError(503,'Website and booking open October 26 at 9:00 AM Eastern.');
+      if (route === "config" || ownerBootstrap) {
         if (req.method !== "GET")
           throw new HttpError(405, "Method not allowed");
         return reply(200, {
           enabled: configured,
-          authEnabled: configured && env.AUTH_ENABLED === "true",
+          authEnabled: configured && (ownerBootstrap || env.AUTH_ENABLED === "true"),
+          ...(ownerBootstrap?{ownerPreview:true}:{}),
           siteMode: "launch",
           notificationsEnabled: configured && env.AUTH_ENABLED === "true" && env.NOTIFICATIONS_ENABLED === "true" && !!env.RESEND_API_KEY && !!env.CRON_SECRET,
           guestPortalEnabled: configured && env.AUTH_ENABLED === "true" && env.GUEST_PORTAL_ENABLED === "true",
-          url: configured && !launch.pending ? env.SUPABASE_URL : null,
-          key: configured && !launch.pending ? env.SUPABASE_ANON_KEY : null,
+          url: configured && (!launch.pending||ownerBootstrap) ? env.SUPABASE_URL : null,
+          key: configured && (!launch.pending||ownerBootstrap) ? env.SUPABASE_ANON_KEY : null,
           turnstileSiteKey: configured ? env.TURNSTILE_SITE_KEY || null : null,
           guestEnabled:
             configured &&
@@ -132,6 +136,13 @@ function createHandler({
         if (error) throw error;
         return data;
       };
+      if(ownerEntrance){
+        if(!token)throw new HttpError(401,'Owner sign-in required');
+        const verified=await db.auth.getUser(token);
+        if(verified.error||!verified.data?.user?.email_confirmed_at||verified.data.user.is_anonymous)throw new HttpError(401,'Verified owner sign-in required');
+        if(!await rpc('is_owner',{}))throw new HttpError(403,'This entrance is for the business owner only.');
+        env.AUTH_ENABLED='true';
+      }
       if(route==='public-policies'&&req.method==='GET')return reply(200,await rpc('api_public_policies',{}));
       if (route === 'site-content' && req.method === 'GET') {
         const row=await read(db.from('site_content').select('*').single());
@@ -178,7 +189,7 @@ function createHandler({
         if(!owner)throw new HttpError(403,'Owner access required');
         if(!['GET','POST'].includes(req.method))throw new HttpError(405,'Method not allowed');
         const prepared=await rpc('api_launch_preparation',{p_action:req.method==='GET'?'read':body.action,p_data:body.data||{},p_expected:body.revision??null});
-        return reply(200,{...prepared,technical:{publicSignIn:env.AUTH_ENABLED==='true',automaticEmails:env.NOTIFICATIONS_ENABLED==='true',guestAccess:env.GUEST_PORTAL_ENABLED==='true',captchaConfigured:!!env.TURNSTILE_SITE_KEY,processorConnected:false}});
+        return reply(200,{...prepared,technical:{publicSignIn:!launch.pending&&env.AUTH_ENABLED==='true',automaticEmails:env.NOTIFICATIONS_ENABLED==='true',guestAccess:env.GUEST_PORTAL_ENABLED==='true',captchaConfigured:!!env.TURNSTILE_SITE_KEY,processorConnected:false}});
       }
       if (route === "me" && req.method === "GET")
         return reply(200, {

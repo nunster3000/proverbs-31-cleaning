@@ -5,7 +5,7 @@ const vm=require('node:vm');
 const path=require('node:path');
 const root=path.resolve(__dirname,'../cinematic-preview');
 const code=fs.readFileSync(path.join(root,'assets/sign-in.js'),'utf8');
-async function portal({enabled=true,session=null,role='customer',verification=true,authError=false}={}) {
+async function portal({enabled=true,session=null,role='customer',verification=true,authError=false,ownerPreview=false}={}) {
   const button={disabled:true},email={disabled:true,value:'customer@example.com'},status={};
   const form={querySelector:()=>button,reportValidity:()=>true};
   const nodes={'#email-form':form,'#sign-in-email':email,'#sign-in-status':status};
@@ -14,7 +14,7 @@ async function portal({enabled=true,session=null,role='customer',verification=tr
     document:{querySelector:s=>nodes[s]},
     location:{search:'',hash:'',replace:v=>redirects.push(v)},history:{replaceState(){}},
     URLSearchParams,setTimeout,
-    P31Live:{init:async()=>({enabled,authEnabled:enabled}),api:async route=>{calls.push(route);return {role}},
+    P31Live:{init:async()=>({enabled,authEnabled:enabled,ownerPreview}),api:async route=>{calls.push(route);return {role}},
       signIn:async()=>verification,
       client:{auth:{getSession:async()=>({data:{session},error:authError?new Error('unavailable'):null}),onAuthStateChange(){}}}}
   };
@@ -54,4 +54,9 @@ test('retired destinations contain no demo records and planner scripts remain sy
  const care=fs.readFileSync(path.join(root,'care.html'),'utf8');
  assert.doesNotMatch(care,/demoCustomer|saveDemoJourney|showDemoLink|admin-store.js|P31Admin/);
  for(const match of care.matchAll(/<script>([\s\S]*?)<\/script>/g))new vm.Script(match[1]);
+});
+
+test('temporary owner login routes verified owners to the temporary dashboard and rejects customer roles',async()=>{
+ const owner=await portal({role:'owner',ownerPreview:true,session:{user:{is_anonymous:false}}});assert.deepEqual(owner.redirects,['owner-preview.html']);
+ const customer=await portal({role:'customer',ownerPreview:true});await customer.form.onsubmit({preventDefault(){}});assert.deepEqual(customer.redirects,[]);assert.match(customer.status.textContent,/business owner only/);
 });

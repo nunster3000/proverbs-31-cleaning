@@ -3,16 +3,18 @@
   const button = form.querySelector('button');
   const email = document.querySelector('#sign-in-email');
   const status = document.querySelector('#sign-in-status');
-  let busy = false;
+  let busy = false, ownerPreview=false;
   async function openWorkspace() {
     // Role and email verification come from the authenticated API, never the URL.
     const me = await P31Live.api('me');
     if (!['owner', 'customer'].includes(me.role)) return false;
-    location.replace('workspace.html');
+    if(ownerPreview&&me.role!=='owner')throw new Error('This entrance is for the business owner only.');
+    location.replace(ownerPreview?'owner-preview.html':'workspace.html');
     return true;
   }
   try {
     const config = await P31Live.init();
+    ownerPreview=!!config.ownerPreview;
     if (!config.enabled || !config.authEnabled) {
       status.textContent = 'Online account access is being prepared. Please contact us to arrange your cleaning.';
       return;

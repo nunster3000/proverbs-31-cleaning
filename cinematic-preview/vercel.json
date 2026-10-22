@@ -45,6 +45,19 @@
           "value": "no-referrer"
         }
       ]
+    },
+    {
+      "source": "/(owner-sign-in|owner-preview).html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        }
+      ]
     }
   ],
   "installCommand": "npm ci --prefer-offline --no-audit --no-fund",

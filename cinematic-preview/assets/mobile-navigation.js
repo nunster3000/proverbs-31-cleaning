@@ -1,11 +1,12 @@
 /* Shared phone navigation. Desktop links remain available without JavaScript. */
 (() => {
+  const ownerPage=['/owner-sign-in.html','/owner-preview.html'].includes(location.pathname);
   const header = document.querySelector('header');
   if (!header) return;
   const controls = document.createElement('div');
   controls.className = 'mobile-site-controls';
   const login = document.createElement('a');
-  login.href = 'sign-in.html';
+  login.href = ownerPage?'owner-sign-in.html':'sign-in.html';
   login.textContent = 'Login';
   login.className = 'mobile-login';
   const button = document.createElement('button');
@@ -24,7 +25,7 @@
   close.textContent = 'Close ×';
   const nav = document.createElement('nav');
   nav.setAttribute('aria-label', 'Main navigation');
-  const links = [['Website Home','index.html'],['Dashboard Home','workspace.html'],['Our Care','index.html#care'],['Services','services.html'],['Contact Us','contact.html'],['About Me','about.html'],['Plan My Care','care.html']];
+  const links = [['Website Home','index.html'],['Dashboard Home',ownerPage?'owner-preview.html':'workspace.html'],['Our Care','index.html#care'],['Services','services.html'],['Contact Us','contact.html'],['About Me','about.html'],['Plan My Care','care.html']];
   if(document.body.dataset.guestPortal==='true')links[1]=['Your guest booking','guest.html'];
   for (const [label, href] of links) {
     const a = document.createElement('a');
@@ -56,7 +57,7 @@
   });
   document.addEventListener('p31:authenticated', () => {
     login.textContent = 'Dashboard Home';
-    login.href = 'workspace.html';
+    login.href = ownerPage?'owner-preview.html':'workspace.html';
     login.addEventListener('click', event => { event.preventDefault(); document.getElementById('dashboard-home')?.click(); });
     const dashboardLink = Array.from(nav.querySelectorAll('a')).find(a => a.textContent === 'Dashboard Home');
     dashboardLink?.addEventListener('click', event => { event.preventDefault(); document.getElementById('dashboard-home')?.click(); });

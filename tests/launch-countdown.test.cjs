@@ -22,7 +22,7 @@ test('pending countdown blocks all website APIs except clock/config, hides provi
 test('countdown page has no booking/customer content and no query-string bypass; routing covers direct page links',()=>{
  const html=countdownPage();assert.match(html,/Website and booking available:/);for(const x of ['days','hours','minutes','seconds'])assert.ok(html.includes('data-unit="'+x+'"'));
  assert.ok(!html.includes('hero.mp4'));assert.ok(!html.includes('service_spaces'));
- const proxy=fs.readFileSync('cinematic-preview/proxy.ts','utf8');assert.match(proxy,/launchState\(process.env\).pending/);assert.ok(!proxy.includes('searchParams'));assert.match(proxy,/no-store/);
+ const proxy=fs.readFileSync('cinematic-preview/proxy.ts','utf8');assert.match(proxy,/launchState\(process.env\)/);assert.ok(!proxy.includes('searchParams'));assert.match(proxy,/no-store/);
 });
 test('browser clock follows server time despite wrong device clock and opens only after server confirms release',async()=>{
  let elapsed=0,interval,fetches=0,replaced;

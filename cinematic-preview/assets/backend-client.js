@@ -1,8 +1,9 @@
 window.P31Live = (() => {
   let config, client;
+  const ownerPage=['/owner-sign-in.html','/owner-preview.html'].includes(window.location?.pathname);
   async function init() {
     if (config) return config;
-    const response = await fetch("/api/app?route=config", {
+    const response = await fetch("/api/app?route="+(ownerPage?"owner-config":"config"), {
       cache: "no-store",
     });
     if (!response.ok)
@@ -47,6 +48,7 @@ window.P31Live = (() => {
         method,
         cache: "no-store",
         headers: {
+          ...(config.ownerPreview?{"X-P31-Owner-Preview":"1"}:{}),
           ...(session
             ? { Authorization: "Bearer " + session.access_token }
             : {}),
@@ -124,8 +126,8 @@ window.P31Live = (() => {
           const { error } = await client.auth.signInWithOtp({
             email,
             options: {
-              shouldCreateUser: true,
-              emailRedirectTo: location.origin + "/sign-in.html",
+              shouldCreateUser: !config.ownerPreview,
+              emailRedirectTo: location.origin + (config.ownerPreview?"/owner-sign-in.html":"/sign-in.html"),
               captchaToken: getToken(),
             },
           });

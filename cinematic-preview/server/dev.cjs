@@ -37,7 +37,9 @@ http
       }
       return;
     }
-    if(!new URL(req.url,'http://local').pathname.startsWith('/assets/')&&launchState().pending){res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'});res.end(countdownPage());return;}
+    const localPath=new URL(req.url,'http://local').pathname,ownerPage=['/owner-sign-in.html','/owner-preview.html'].includes(localPath),ownerEnabled=process.env.OWNER_PRELAUNCH_ENABLED==='true'&&process.env.LAUNCH_HOLD!=='true';
+    if(ownerPage&&!launchState().pending){res.writeHead(302,{'Location':localPath==='/owner-preview.html'?'/workspace.html':'/sign-in.html','Cache-Control':'no-store'});res.end();return;}
+    if(!localPath.startsWith('/assets/')&&launchState().pending&&!(ownerPage&&ownerEnabled)){res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'});res.end(countdownPage({ownerEntrance:ownerEnabled}));return;}
     const filename = path.resolve(
       root,
       "." +

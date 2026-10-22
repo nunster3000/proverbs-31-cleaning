@@ -1,4 +1,6 @@
 (async () => {
+  const ownerEntrance=location.pathname==='/owner-preview.html';
+  const signinPath=ownerEntrance?'owner-sign-in.html':'sign-in.html';
   const L = P31Live,
     $ = (s) => document.querySelector(s);
   const previewUrls = new Set();
@@ -156,7 +158,7 @@
       },
       onState:(state,error)=>{
         line.textContent=state==='connected'?'Updates automatically':'Updates paused · reconnecting…';
-        if(error?.status===401 || error?.status===403){autoSync?.stop();$('#workspace-dialog').close();clearPreviews();records=[];$('#workspace-content').replaceChildren();$('#workspace-detail').replaceChildren();location.replace('sign-in.html');}
+        if(error?.status===401 || error?.status===403){autoSync?.stop();$('#workspace-dialog').close();clearPreviews();records=[];$('#workspace-content').replaceChildren();$('#workspace-detail').replaceChildren();location.replace(signinPath);}
       }
     });
     document.addEventListener('visibilitychange',()=>document.visibilityState==='visible'?autoSync.wake():autoSync.pause());
@@ -1514,12 +1516,12 @@
   try {
     const config = await L.init();
     if (!config.enabled || !config.authEnabled) {
-      location.replace("sign-in.html");
+      location.replace(signinPath);
       return;
     }
     const { data: { session } } = await L.client.auth.getSession();
     if (!session || session.user.is_anonymous) {
-      location.replace("sign-in.html");
+      location.replace(signinPath);
       return;
     }
     L.client.auth.onAuthStateChange((event) => {
@@ -1527,7 +1529,7 @@
         autoSync?.stop();
         document.querySelector("#workspace-content").replaceChildren();
         document.querySelector("#workspace-detail").replaceChildren();
-        location.replace("sign-in.html");
+        location.replace(signinPath);
       }
     });
     me = await L.api("me");
@@ -1540,7 +1542,7 @@
       );
     if (me.role === "owner") {
       const adminLink = n("a", "Admin dashboard");
-      adminLink.href = "workspace.html";
+      adminLink.href = ownerEntrance?"owner-preview.html":"workspace.html";
       document.querySelector("header nav").prepend(adminLink);
     }
     $("#sign-out").hidden = false;
@@ -1594,7 +1596,7 @@
     $('#close-workspace-menu').onclick=()=>$('#workspace-menu').close();
     $("#sign-out").onclick = async () => {
       await L.client.auth.signOut();
-      location.replace("sign-in.html");
+      location.replace(signinPath);
     };
     await reload();
     startWorkspaceSync();
@@ -1603,7 +1605,7 @@
       e.status === 401 ? "Sign in to continue" : "Workspace unavailable";
     msg(e.message);
     const a = n("a", "Sign in securely", "primary");
-    a.href = "sign-in.html";
+    a.href = signinPath;
     $("#workspace-content").append(a);
   }
 })();
