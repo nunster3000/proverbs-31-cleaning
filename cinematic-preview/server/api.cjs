@@ -189,6 +189,10 @@ function createHandler({
       }
       if (user.is_anonymous)
         throw new HttpError(403, "Account sign-in is required for this page.");
+      if(route==='agreement-draft' && ['GET','POST'].includes(req.method)){
+        if(!owner)throw new HttpError(403,'Owner access required');
+        return reply(200,await rpc('api_agreement_draft',{p_data:req.method==='POST'?body.draft:null,p_expected:body.revision ?? null}));
+      }
       if(route==='access-records' && req.method==='GET'){
         if(!owner)throw new HttpError(403,'Owner access required');
         return reply(200,await read(db.from('access_signatures').select('*,form:access_forms(*)').order('signed_at',{ascending:false}).limit(500)));
@@ -200,7 +204,7 @@ function createHandler({
       }
       if(route==='access-form' && req.method==='POST'){
         if(!owner)throw new HttpError(403,'Owner access required');
-        return reply(201,await rpc('api_publish_access_form',{p_title:body.title,p_body:body.body,p_previous:body.previous || null,p_representative:body.representative || '',p_automatic:body.automatic===true}));
+        return reply(201,await rpc('api_publish_access_form',{p_title:body.title,p_body:body.body,p_previous:body.previous || null,p_representative:body.representative || '',p_automatic:body.automatic===true,p_configuration:body.configuration || {}}));
       }
       if(route==='access-countersign' && req.method==='POST'){
         if(!owner)throw new HttpError(403,'Owner access required');
