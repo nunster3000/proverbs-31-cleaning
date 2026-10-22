@@ -12,7 +12,8 @@ function createNotificationHandler({env=process.env,clientFactory=createClient,s
    if(env.NOTIFICATION_SETUP_TEST_ENABLED!=='true'||!env.RESEND_API_KEY)return reply(403,{error:'Setup test is disabled'});
    try{
     const r=await send('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+env.RESEND_API_KEY,'Content-Type':'application/json','Idempotency-Key':'p31-notification-setup-2026-10-21'},body:JSON.stringify({from:'Proverbs 31 Cleaning Company <gabriellejackson@proverbs31cleaningcoservices.info>',to:['khris.nun@proverbs31cleaningcoservices.info'],subject:'Proverbs 31 · Notification delivery setup test',text:'This is the authorized notification setup test from the Proverbs 31 website. No customer booking was created or changed. Public sign-in and automatic customer notifications remain disabled.'}),signal:AbortSignal.timeout(15000)});
-    const data=await r.json();if(!r.ok||!data.id)throw Error('Delivery unavailable');return reply(200,{accepted:true,provider_id:data.id});
+    if(!r.ok)return reply(502,{error:'Setup email was rejected by the provider',provider_status:r.status});
+    const data=await r.json();if(!data.id)throw Error('Delivery unavailable');return reply(200,{accepted:true,provider_id:data.id});
    }catch{return reply(503,{error:'Setup email was not acknowledged'});}
   }
   if(env.AUTH_ENABLED!=='true'||env.NOTIFICATIONS_ENABLED!=='true')return reply(200,{enabled:false,sent:0});
