@@ -27,7 +27,7 @@
       apartment: "Apartment Cleaning",
       airbnb: "Airbnb Turnover",
     };
-  const arrivalName = (id) => names[id] || P31Windows.label(id);
+  const arrivalName = (id) => (names[id] || P31Windows.label(id)) + " ET";
   const money = (c) =>
     new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -734,7 +734,7 @@
         c.append(
           n(
             "p",
-            new Date(e.created_at).toLocaleString() +
+            new Date(e.created_at).toLocaleString("en-US", {timeZone: "America/New_York", timeZoneName: "short"}) +
               " · " +
               e.action +
               " · " +
@@ -872,7 +872,7 @@
     root.append(quote);
     if ((b.payment_records || []).length) {
       const history=section("Payments recorded");
-      b.payment_records.forEach(payment=>history.append(n("p",money(payment.cents)+" · "+payment.kind+" · "+payment.method+" · "+new Date(payment.created_at).toLocaleDateString())));
+      b.payment_records.forEach(payment=>history.append(n("p",money(payment.cents)+" · "+payment.kind+" · "+payment.method+" · "+new Date(payment.created_at).toLocaleDateString("en-US", {timeZone: "America/New_York"}))));
       history.append(n("p","These are payments recorded by the company. No card transaction is processed on this website yet.","fine"));root.append(history);
     }
     if(me.role!=='owner'){
@@ -1242,7 +1242,7 @@
     if(!customers.find(c=>c.id===b.customer_id)?.account_enabled){
       const guest=section("Guest booking access"),notice=n("p","Create a private, one-use link for the booking’s contact email. It expires after 30 minutes and opens an eight-hour browser session. Creating a new link revokes earlier links and sessions. Share it only with this customer.");
       guest.append(notice);const output=n('div');
-      guest.append(btn('Create private guest link',async()=>{try{const grant=await L.api('guest-invite',{method:'POST',data:{id:b.id}});output.replaceChildren(n('p','Recipient: '+grant.recipient+' · Expires '+new Date(grant.expires_at).toLocaleString()));const value=input('password',grant.url);value.readOnly=true;output.append(label('Private guest link',value),btn('Copy private link',async()=>{try{await navigator.clipboard.writeText(grant.url);notice.textContent='Private link copied. Share only with '+grant.recipient+'.';}catch{value.type='text';value.select();notice.textContent='Select and copy the private link. Share only with '+grant.recipient+'.';}}));}catch(e){notice.textContent=e.message;}}),btn('Revoke guest access',()=>act(async()=>{await L.api('guest-revoke',{method:'POST',data:{id:b.id}});output.replaceChildren();},'Guest links and browser sessions revoked.')),output);root.append(guest);
+      guest.append(btn('Create private guest link',async()=>{try{const grant=await L.api('guest-invite',{method:'POST',data:{id:b.id}});output.replaceChildren(n('p','Recipient: '+grant.recipient+' · Expires '+new Date(grant.expires_at).toLocaleString("en-US", {timeZone: "America/New_York", timeZoneName: "short"})));const value=input('password',grant.url);value.readOnly=true;output.append(label('Private guest link',value),btn('Copy private link',async()=>{try{await navigator.clipboard.writeText(grant.url);notice.textContent='Private link copied. Share only with '+grant.recipient+'.';}catch{value.type='text';value.select();notice.textContent='Select and copy the private link. Share only with '+grant.recipient+'.';}}));}catch(e){notice.textContent=e.message;}}),btn('Revoke guest access',()=>act(async()=>{await L.api('guest-revoke',{method:'POST',data:{id:b.id}});output.replaceChildren();},'Guest links and browser sessions revoked.')),output);root.append(guest);
     }
     const privateNotes = section("Owner notes"),
       text = n("textarea");

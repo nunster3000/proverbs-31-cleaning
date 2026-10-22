@@ -78,12 +78,8 @@ async function rpc(name, args) {
   ).rows[0].result;
 }
 let booking;
-const day = () => {
-  const d = new Date();
-  d.setDate(d.getDate() + 3);
-  while (d.getDay() === 0) d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
-};
+const { bookingDate } = require('./helpers/booking-date.cjs');
+const day = () => bookingDate(3);
 test('complete starting-price matrix agrees with backend for all services, add-ons, laundry and deposits',async()=>{
  await ready;const vm=require('node:vm'),ctx={window:{}};vm.runInNewContext(fs.readFileSync('cinematic-preview/assets/service-catalog.js','utf8'),ctx);const front=ctx.window.P31;
  const prices=[6500,5000,8500,11000,14000,17500,22500,25000],labels={standard:'Standard Cleaning',deep:'Deep Cleaning',apartment:'Apartment Cleaning',airbnb:'Airbnb Turnover'};let combinations=0;
@@ -293,7 +289,7 @@ test("a later recurring conflict rolls back the whole booking series and custome
   await login("owner");
   const first = day(),
     later = new Date(first + "T12:00:00");
-  later.setDate(later.getDate() + 7);
+  later.setUTCDate(later.getUTCDate() + 7);
   const blocked = later.toISOString().slice(0, 10);
   await rpc("api_owner_schedule", [
     "block",
@@ -598,7 +594,7 @@ test("only owners can change catalog prices, stale edits are rejected, and saved
 
 test('manual prices are owner-only, approval is explicit, and five visit stages persist', async()=>{
  await ready;
- const future=new Date();future.setDate(future.getDate()+50);const d=future.toISOString().slice(0,10);
+ const future=new Date();future.setUTCDate(future.getUTCDate()+50);const d=future.toISOString().slice(0,10);
  const payload={first_name:'Jamie',last_name:'Taylor',name:'Jamie Taylor',email:'jamie@example.com',address:'45 Sample Road',service:'standard',space_id:3,date:d,arrival:'morning',manual_price_cents:18500,pricing_status:'awaiting_approval',pricing_notes:'Reviewed rooms by phone.'};
  await login('alice');
  await assert.rejects(()=>rpc('api_create_booking',[JSON.stringify(payload),crypto.randomUUID()]),/Owner access required/);
@@ -616,7 +612,7 @@ test('manual prices are owner-only, approval is explicit, and five visit stages 
 });
 
 test('deposit, walkthrough approval and verified completion uploads govern milestones',async()=>{
- await ready;await login('owner');const future=new Date();future.setDate(future.getDate()+55);const date=future.toISOString().slice(0,10);
+ await ready;await login('owner');const future=new Date();future.setUTCDate(future.getUTCDate()+55);const date=future.toISOString().slice(0,10);
  await rpc('api_owner_schedule',['day_windows',JSON.stringify({date,windows:['morning']})]);
  await login('alice');
  const [b]=await rpc('api_create_booking',[JSON.stringify({name:'Alice',address:'Sample home',service:'standard',space_id:3,date,arrival:'morning'}),crypto.randomUUID()]);
@@ -683,7 +679,7 @@ test('customer notices are private, review reads persist, and approval/payment t
 test('reschedule and cancellation require explicit admin review, preserve money, and notify both dashboards',async()=>{
  await ready;await db.exec('reset role');
  const b=(await db.query('select b.* from public.bookings b join public.customers c on c.id=b.customer_id where c.auth_user_id=$1 limit 1',[ids.alice])).rows[0];
- const dates=[90,91].map(offset=>{const d=new Date();d.setDate(d.getDate()+offset);return d.toISOString().slice(0,10)});
+ const dates=[90,91].map(offset=>{const d=new Date();d.setUTCDate(d.getUTCDate()+offset);return d.toISOString().slice(0,10)});
  await db.query("update public.bookings set status='confirmed',invoice_issued=false,reviewed=true,walkthrough_approved=true,quote_status='accepted',visit_date=$2,arrival='morning' where id=$1",[b.id,dates[0]]);
  await login('owner');for(const date of dates)await rpc('api_owner_schedule',['day_windows',JSON.stringify({date,windows:['morning']})]);
  const snapshot=async()=>{await db.exec('reset role');return(await db.query('select quote_snapshot,final_cents,deposit_paid_cents,final_paid_cents from public.bookings where id=$1',[b.id])).rows[0]};const money=await snapshot();
@@ -710,7 +706,7 @@ test('reschedule and cancellation require explicit admin review, preserve money,
 test('two real customer identities only read their own related records and cannot forge access to private media',async()=>{
  await ready;const made={};const files={};
  for(const [index,who] of ['alice','bob'].entries()){
-  const d=new Date();d.setDate(d.getDate()+180+index);const date=d.toISOString().slice(0,10);
+  const d=new Date();d.setUTCDate(d.getUTCDate()+180+index);const date=d.toISOString().slice(0,10);
   await login('owner');await rpc('api_owner_schedule',['day_windows',JSON.stringify({date,windows:['morning']})]);
   await login(who);[made[who]]=await rpc('api_create_booking',[JSON.stringify({name:who,address:who+' private address',service:'standard',space_id:3,date,arrival:'morning'}),crypto.randomUUID()]);
   files[who]=await rpc('api_upload_request',[made[who].id,JSON.stringify({filename:who+'.png',mime:'image/png',bytes:8,room:'Bedroom'})]);
@@ -754,7 +750,7 @@ test('two real customer identities only read their own related records and canno
 
 test('upload quotas and file metadata are enforced by the database, including failed reservations',async()=>{
  await ready;
- const create=async offset=>{const d=new Date();d.setDate(d.getDate()+offset);const date=d.toISOString().slice(0,10);await login('owner');await rpc('api_owner_schedule',['day_windows',JSON.stringify({date,windows:['morning']})]);await login('alice');return(await rpc('api_create_booking',[JSON.stringify({name:'Upload QA',address:'Isolated test address',service:'standard',space_id:3,date,arrival:'morning'}),crypto.randomUUID()]))[0]};
+ const create=async offset=>{const d=new Date();d.setUTCDate(d.getUTCDate()+offset);const date=d.toISOString().slice(0,10);await login('owner');await rpc('api_owner_schedule',['day_windows',JSON.stringify({date,windows:['morning']})]);await login('alice');return(await rpc('api_create_booking',[JSON.stringify({name:'Upload QA',address:'Isolated test address',service:'standard',space_id:3,date,arrival:'morning'}),crypto.randomUUID()]))[0]};
  const b=await create(185),MB=1024*1024;
  const reserve=(booking,extra={})=>rpc('api_upload_request',[booking.id,JSON.stringify({filename:'room.jpg',mime:'image/jpeg',bytes:100,room:'Bedroom',...extra})]);
  for(const extra of [{bytes:0},{bytes:20*MB+1},{mime:'image/heic'},{mime:'text/html'},{room:''}])await assert.rejects(()=>reserve(b,extra));
@@ -775,7 +771,7 @@ test('upload quotas and file metadata are enforced by the database, including fa
 test('every catalog price edit affects new quotes only, preserving saved totals, approval and payments',async()=>{
  await ready;await login('owner');
  const spaces=(await db.query('select * from public.service_spaces')).rows,services=(await db.query('select * from public.service_types')).rows,addons=(await db.query('select * from public.service_addons')).rows;
- const make=async offset=>{const d=new Date();d.setDate(d.getDate()+offset);const date=d.toISOString().slice(0,10);await login('owner');await rpc('api_owner_schedule',['day_windows',JSON.stringify({date,windows:['morning']})]);await login('alice');return(await rpc('api_create_booking',[JSON.stringify({name:'Pricing QA',address:'Local test address',service:'deep',space_id:3,date,arrival:'morning',extras:{fridge:true,oven:true,baseboards:true,laundry:2}}),crypto.randomUUID()]))[0]};
+ const make=async offset=>{const d=new Date();d.setUTCDate(d.getUTCDate()+offset);const date=d.toISOString().slice(0,10);await login('owner');await rpc('api_owner_schedule',['day_windows',JSON.stringify({date,windows:['morning']})]);await login('alice');return(await rpc('api_create_booking',[JSON.stringify({name:'Pricing QA',address:'Local test address',service:'deep',space_id:3,date,arrival:'morning',extras:{fridge:true,oven:true,baseboards:true,laundry:2}}),crypto.randomUUID()]))[0]};
  const old=await make(190);await db.exec('reset role');await db.query("update public.bookings set final_cents=$2,quote_status='accepted',reviewed=true,revision=2,deposit_paid_cents=$3 where id=$1",[old.id,old.quote_snapshot.total_cents+1500,old.quote_snapshot.deposit_cents]);
  const saved=(await db.query('select * from public.bookings where id=$1',[old.id])).rows[0];
  await login('owner');
@@ -790,7 +786,7 @@ test('every catalog price edit affects new quotes only, preserving saved totals,
  const ui=ctx.window.P31.quote({space:3,service:'Deep Cleaning',extras:{fridge:true,oven:true,baseboards:true,laundry:2}});assert.equal(ui.deposit,newQuote.deposit_cents/100);assert.equal(ui.remaining,(newQuote.total_cents-newQuote.deposit_cents)/100);
  const newer=await make(191);assert.deepEqual(newer.quote_snapshot,newQuote);assert.equal(newer.deposit_paid_cents,0);
  // Verify both apartment subcategories use the same current size-based pricing.
- await login('owner');for(const mode of ['Move-In','Move-Out']){const d=new Date();d.setDate(d.getDate()+(mode==='Move-In'?192:193));const date=d.toISOString().slice(0,10);await rpc('api_owner_schedule',['day_windows',JSON.stringify({date,windows:['morning']})]);const [b]=await rpc('api_create_booking',[JSON.stringify({name:'Apartment QA',email:'apartment@example.com',address:'Local test address',service:'apartment',space_id:3,date,arrival:'morning',apartment_mode:mode}),crypto.randomUUID()]);assert.equal(b.apartment_mode,mode);assert.equal(b.quote_snapshot.base_cents,spaces.find(s=>s.id===3).base_cents+1001)}
+ await login('owner');for(const mode of ['Move-In','Move-Out']){const d=new Date();d.setUTCDate(d.getUTCDate()+(mode==='Move-In'?192:193));const date=d.toISOString().slice(0,10);await rpc('api_owner_schedule',['day_windows',JSON.stringify({date,windows:['morning']})]);const [b]=await rpc('api_create_booking',[JSON.stringify({name:'Apartment QA',email:'apartment@example.com',address:'Local test address',service:'apartment',space_id:3,date,arrival:'morning',apartment_mode:mode}),crypto.randomUUID()]);assert.equal(b.apartment_mode,mode);assert.equal(b.quote_snapshot.base_cents,spaces.find(s=>s.id===3).base_cents+1001)}
 });
 
 test('public website content is owner editable, versioned and isolated from private customer media',async()=>{

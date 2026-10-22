@@ -6,8 +6,8 @@ const {db,ready,login,rpc}=box.module.exports;after(()=>db.close());
 test('access authorization is versioned, private, customer-signed and required before travel',async()=>{
  await ready;await db.exec('reset role');await db.exec(fs.readFileSync('cinematic-preview/supabase/migrations/011_access_authorization.sql','utf8'));await db.exec('grant all on public.access_forms,public.access_signatures to anon,authenticated');await db.exec(fs.readFileSync('cinematic-preview/supabase/migrations/012_access_table_grants.sql','utf8'));assert.equal((await db.query("select has_table_privilege('authenticated','public.access_signatures','INSERT,UPDATE,DELETE') as allowed")).rows[0].allowed,false);
  await login('alice');
- const d=new Date();d.setDate(d.getDate()+10);while(d.getDay()===0)d.setDate(d.getDate()+1);
- const payload={service:'standard',space_id:3,name:'Alice Test',email:'alice@example.com',address:'123 Example Lane',phone:'5551234567',city:'Atlanta',state:'GA',zip:'30303',date:d.toISOString().slice(0,10),arrival:'morning',focus:[],extras:{}};
+ const date=require('./helpers/booking-date.cjs').bookingDate(10);
+ const payload={service:'standard',space_id:3,name:'Alice Test',email:'alice@example.com',address:'123 Example Lane',phone:'5551234567',city:'Atlanta',state:'GA',zip:'30303',date,arrival:'morning',focus:[],extras:{}};
  const b=(await rpc('api_create_booking',[JSON.stringify(payload),'44444444-4444-4444-8444-444444444444']))[0];
  await assert.rejects(()=>rpc('api_publish_access_form',['Form','Test permission wording for this isolated QA visit only.',null]),/Owner/);
  await login('owner');const f=await rpc('api_publish_access_form',['QA permission form','This is isolated test wording, not an actual business permission form.',null]);

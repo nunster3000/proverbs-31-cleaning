@@ -16,7 +16,7 @@ window.P31Access = (() => {
     api('access-form',{query:{id:b.id}}).then(data=>{
       if(!root.isConnected)return;
       if(focus){root.scrollIntoView({block:'start'});heading.focus({preventScroll:true});}
-      status.textContent=data.receipt?'Signed · '+data.receipt.signer_name+' · '+new Date(data.receipt.signed_at).toLocaleString():b.status==='confirmed'?'Signature needed before Gabrielle can head to your home.':'Available after Gabrielle confirms your booking.';
+      status.textContent=data.receipt?'Signed · '+data.receipt.signer_name+' · '+new Date(data.receipt.signed_at).toLocaleString("en-US", {timeZone: "America/New_York", timeZoneName: "short"}):b.status==='confirmed'?'Signature needed before Gabrielle can head to your home.':'Available after Gabrielle confirms your booking.';
       if(!data.form){root.append(el('p','Gabrielle’s permission form is being prepared. Signing is not available yet.'));return;}
       const f=data.receipt?.form || data.form;
       root.append(el('h3',f.title));const wording=el('div',f.body);wording.className='access-form-wording';root.append(wording);
@@ -40,7 +40,7 @@ window.P31Access = (() => {
     const status=notice(root,'Loading current form…');
     api('access-form').then(data=>{
       if(!root.isConnected)return;
-      status.textContent=data.form?'Current version published '+new Date(data.form.created_at).toLocaleDateString():'No form published. Customer signing is unavailable.';
+      status.textContent=data.form?'Current version published '+new Date(data.form.created_at).toLocaleDateString("en-US", {timeZone: "America/New_York"}):'No form published. Customer signing is unavailable.';
       const form=el('form'),title=el('input'),body=el('textarea'),approved=el('input');title.required=true;title.minLength=3;title.maxLength=160;title.value=data.form?.title || '';body.required=true;body.minLength=40;body.maxLength=30000;body.rows=16;body.value=data.form?.body || '';approved.type='checkbox';approved.required=true;
       form.append(field('Form title',title),field('Permission form wording',body),field('This is the business-approved wording, ready for customers to read and sign.',approved));
       const submit=el('button','Publish permission form');submit.className='primary';submit.type='submit';form.append(submit);

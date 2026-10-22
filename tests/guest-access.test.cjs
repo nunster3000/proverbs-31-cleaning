@@ -4,8 +4,8 @@ const source=fs.readFileSync('tests/backend-database.test.cjs','utf8').split('le
 async function service(){await db.exec('reset role');await db.query("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({role:'service_role'})]);await db.exec('set role service_role');}
 test('guest links are single-use, scoped, revocable and support verified uploads, price approval and access signing without impersonating an account',async()=>{
  await ready;await db.exec('reset role');for(const name of ['011_access_authorization','012_access_table_grants','013_guest_booking_access','014_guest_receipt_access'])await db.exec(fs.readFileSync('cinematic-preview/supabase/migrations/'+name+'.sql','utf8'));
- await login('alice');const day=new Date();day.setDate(day.getDate()+12);while(day.getDay()===0)day.setDate(day.getDate()+1);
- const payload={name:'Guest QA',email:'guest@example.com',address:'123 Example Lane',service:'standard',space_id:3,date:day.toISOString().slice(0,10),arrival:'morning'};
+ await login('alice');const date=require('./helpers/booking-date.cjs').bookingDate(12);
+ const payload={name:'Guest QA',email:'guest@example.com',address:'123 Example Lane',service:'standard',space_id:3,date,arrival:'morning'};
  const b=(await rpc('api_create_booking',[JSON.stringify(payload),'44444444-4444-4444-8444-444444444444']))[0];
  await db.exec('reset role');await db.query('update public.customers set account_enabled=false where id=$1',[b.customer_id]);
  await login('owner');const form=await rpc('api_publish_access_form',['TEST ONLY permission','Disposable guest authorization wording for the isolated test database only.',null]);
