@@ -63,6 +63,7 @@ function createHandler({
           enabled: configured,
           authEnabled: configured && env.AUTH_ENABLED === "true",
           siteMode: "launch",
+          notificationsEnabled: configured && env.AUTH_ENABLED === "true" && env.NOTIFICATIONS_ENABLED === "true" && !!env.RESEND_API_KEY && !!env.CRON_SECRET,
           guestPortalEnabled: configured && env.AUTH_ENABLED === "true" && env.GUEST_PORTAL_ENABLED === "true",
           url: configured ? env.SUPABASE_URL : null,
           key: configured ? env.SUPABASE_ANON_KEY : null,

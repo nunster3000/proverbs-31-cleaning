@@ -747,12 +747,12 @@
       queue.append(
         n(
           "p",
-          "These notifications are saved, but no email provider is connected. Pending messages have not been sent.",
+          L.config.notificationsEnabled ? "Customer emails are delivered automatically. Sent means the email provider accepted the message; inbox delivery is tracked in Resend." : "Email delivery is paused. Booking notifications are saved here and will not be sent while delivery is disabled.",
         ),
       );
       (state.outbox || []).forEach((e) =>
         queue.append(
-          n("p", e.kind + " · " + e.recipient + " · " + e.status, "fine"),
+          n("p", e.kind + " · " + e.recipient + " · " + (e.status === "sent" ? "Accepted by email provider" : e.status === "failed" ? "Needs review" : "Queued") + (e.last_error ? " · " + e.last_error : ""), "fine"),
           btn("Preview email template",async()=>{
             try {
               const template=await L.api('notification-preview',{query:{id:e.id}});

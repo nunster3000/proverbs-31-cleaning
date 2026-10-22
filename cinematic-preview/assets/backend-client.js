@@ -8,16 +8,21 @@ window.P31Live = (() => {
     if (!response.ok)
       throw new Error("Unable to check the backend connection.");
     config = await response.json();
+    const callback = window.P31AuthCallback?.take(location, history);
     if (config.enabled) {
       if (!window.createSupabaseClient) await load("/assets/backend-sdk.js");
       client = window.createSupabaseClient(config.url, config.key, {
         auth: {
           flowType: "pkce",
-          detectSessionInUrl: config.authEnabled,
+          detectSessionInUrl: config.authEnabled && !(callback?.tokenHash || callback?.accessToken || callback?.refreshToken || callback?.error),
           persistSession: config.authEnabled,
           autoRefreshToken: config.authEnabled,
         },
       });
+      if (config.authEnabled && callback) {
+        try { await window.P31AuthCallback.finish(client.auth, callback); }
+        catch (error) { config.callbackError = error.message; }
+      }
     }
     return config;
   }

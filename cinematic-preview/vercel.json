@@ -47,5 +47,11 @@
       ]
     }
   ],
-  "installCommand": "npm ci"
+  "installCommand": "npm ci",
+  "crons": [
+    {
+      "path": "/api/notifications",
+      "schedule": "*/5 * * * *"
+    }
+  ]
 }

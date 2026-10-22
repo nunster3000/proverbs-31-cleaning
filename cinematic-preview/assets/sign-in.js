@@ -17,6 +17,7 @@
       status.textContent = 'Online account access is being prepared. Please contact us to arrange your cleaning.';
       return;
     }
+    if (config.callbackError) status.textContent = config.callbackError;
     const params = new URLSearchParams(location.search);
     const hash = new URLSearchParams(location.hash.slice(1));
     if (params.has('error') || hash.has('error')) {
@@ -28,7 +29,7 @@
     if (session && !session.user.is_anonymous) {
       if (await openWorkspace()) return;
     }
-    // A verified code or email link in another tab can establish this session.
+    // A verified email link in another tab can establish this session.
     P31Live.client.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session && !session.user.is_anonymous)
         setTimeout(() => openWorkspace().catch(e => status.textContent = e.message), 0);
