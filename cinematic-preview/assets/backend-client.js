@@ -93,9 +93,9 @@ window.P31Live = (() => {
       h.textContent = "Verify your email";
       const p = document.createElement("p");
       p.textContent =
-        "We will send a sign-in link or code to " +
+        "We will send a secure sign-in link to " +
         email +
-        ". Keep this page open while you verify.";
+        ". Open the email and click the sign-in link in this browser.";
       const security = document.createElement("div"),
         status = document.createElement("p");
       status.setAttribute("role", "status");
@@ -103,25 +103,11 @@ window.P31Live = (() => {
       send.type = "button";
       send.className = "primary";
       send.textContent = "Send sign-in email";
-      const form = document.createElement("form"),
-        label = document.createElement("label");
-      label.textContent = "Email code";
-      const input = document.createElement("input");
-      input.required = true;
-      input.inputMode = "numeric";
-      input.autocomplete = "one-time-code";
-      input.maxLength = 12;
-      label.append(input);
-      const verify = document.createElement("button");
-      verify.className = "primary";
-      verify.textContent = "Verify code";
-      form.append(label, verify);
-      form.hidden = true;
       const close = document.createElement("button");
       close.className = "outline";
       close.textContent = "Back";
       close.onclick = () => dialog.close();
-      dialog.append(h, p, security, send, form, status, close);
+      dialog.append(h, p, security, send, status, close);
       document.body.append(dialog);
       let getToken = () => null;
       captcha(security)
@@ -140,8 +126,8 @@ window.P31Live = (() => {
           });
           if (error) throw error;
           status.textContent =
-            "Check your email. Enter its code below, or use the sign-in link and return to this booking.";
-          form.hidden = false;
+            "Email sent. Open the newest email and click its sign-in link in this browser to continue.";
+          send.textContent = "Resend sign-in link";
         } catch (e) {
           status.textContent = e.message;
         } finally {
@@ -149,26 +135,14 @@ window.P31Live = (() => {
           getToken.reset?.();
         }
       };
-      form.onsubmit = async (e) => {
-        e.preventDefault();
-        try {
-          verify.disabled = true;
-          const { error } = await client.auth.verifyOtp({
-            email,
-            token: input.value.trim(),
-            type: "email",
-          });
-          if (error) throw error;
+      const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {
+        if (event === "SIGNED_IN" && session && !session.user.is_anonymous)
           dialog.close("verified");
-        } catch (e) {
-          status.textContent = e.message;
-        } finally {
-          verify.disabled = false;
-        }
-      };
+      });
       dialog.addEventListener(
         "close",
         () => {
+          subscription.unsubscribe();
           resolve(dialog.returnValue === "verified");
           dialog.remove();
         },
