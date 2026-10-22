@@ -37,3 +37,5 @@ Migration 015 was applied and production permissions verified: anonymous/custome
 An isolated POST `/api/notifications?setup_test=true` check is available only with the cron bearer secret and an explicit temporary `NOTIFICATION_SETUP_TEST_ENABLED=true` switch. It sends solely to the approved work email, never reads the customer queue, and uses a stable Resend idempotency key. Return this switch to false after the delivery check. No live booking or payment is created by this test.
 
 The notification credential is independent of Supabase SMTP. Its replacement remains restricted to Sending access for the business domain and is stored write-only in Vercel; it is never embedded in client code. Setup diagnostics return only HTTP status codes, not provider bodies or credentials.
+
+The authorized setup email was accepted by Resend through the production website on October 21, 2026 (provider ID `01a16175-d199-7300-9a38-ed721c0ed2b1`). The dedicated setup-test switch was returned to false afterward. Normal customer dispatch and public authentication remain disabled. Final inbox delivery is checked separately in Resend.
