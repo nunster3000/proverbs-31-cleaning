@@ -47,7 +47,7 @@
       ]
     }
   ],
-  "installCommand": "npm ci",
+  "installCommand": "npm ci --prefer-offline --no-audit --no-fund",
   "crons": [
     {
       "path": "/api/notifications",
