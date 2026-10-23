@@ -10,7 +10,7 @@ Guest **checkout** remains disabled: it still needs the separately deferred anon
 
 ## Backups and monitoring
 
-Second hosted GitHub run 39840850552 succeeded. Retrieved and decrypted production snapshot 4f8a47c3 from Backblaze, checked archive catalog (customer/booking/agreement/auth/storage/owner records) and read all repository data with restic check. That snapshot had zero media objects; separate fixture tests cover encrypted media recovery/checksums. A fresh production backup includes the operations/privacy migration.
+Second hosted GitHub run 39840850552 succeeded. Retrieved and decrypted production snapshot 4f8a47c3 from Backblaze, checked archive catalog (customer/booking/agreement/auth/storage/owner records) and read all repository data with restic check. That snapshot had zero media objects; separate fixture tests cover encrypted media recovery/checksums. A fresh production backup includes the operations/privacy migration. Restored its public/private/auth/storage schemas into a fresh Unix-socket-only PostgreSQL 17 cluster with zero restore errors; verified three Auth users, one owner, private walkthrough bucket and 18 public RLS tables. Restored owner/customer checks and restricted customer writes passed. The temporary cluster was removed. This is a real archive recovery test, not a recreation of hosted Supabase infrastructure or provider settings.
 
 Private backup runner reports success/failure through service-only Supabase functions. Independent Vercel cron checks every six hours for missing/stale (>36h) backup success, latest failed attempt, and terminal/expired email jobs. Technical alerts go only to Khris's work email, contain no customer information, and are suppressed for 24h after provider acceptance. This operates before launch. A platform outage can prevent this monitor running; it is not an independent external uptime service.
 
@@ -23,3 +23,5 @@ Canonical-domain public pages become eligible for indexing at launch. Before lau
 ## Privacy operations
 
 Owner-only request tracking, identity-verification gating, exact-customer inventory and private exports are available in Admin → Privacy & operations. See privacy-operations.md for limits. Retention/purge choices remain owner approvals; no automatic deletion, refund or legal promise was introduced.
+
+Production verification: canonical home/account URLs still serve countdown, robots disallows all, sitemap contains no URLs, config returns auth/notifications/guest access false before launch, and operations check returns zero issues. Resend accepted setup email 01a169ad-d029-7941-ad15-b03344f85a46 to the technical work address; inbox delivery was not independently confirmed. Temporary setup-email flag is disabled afterward.
