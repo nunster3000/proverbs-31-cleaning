@@ -1,4 +1,5 @@
 const {randomBytes,createHash}=require('node:crypto');
+const {checkout}=require('./payments.cjs');
 const secret=()=>randomBytes(32).toString('base64url');
 const digest=value=>createHash('sha256').update(value).digest('hex');
 const valid=value=>typeof value==='string' && /^[A-Za-z0-9_-]{43}$/.test(value);
@@ -28,6 +29,7 @@ async function handleGuest({req,res,route,body,url,env,clientFactory,reply,fetch
   if(!valid(cookie))fail(401,'Guest access expired or unavailable. Ask Gabrielle for a new link.');
   const call=(action,data={})=>rpc('api_guest_booking',{p_session:digest(cookie),p_action:action,p_data:data});
   const storage=service.storage.from('walkthroughs');
+  if(route==='guest-checkout' && req.method==='POST'){const current=await call('view');reply(200,await checkout({env,bookingId:current.booking.id,kind:body.kind,guest:digest(cookie),policy:body.policy||{},clientFactory}));return true;}
   if(route==='guest-view' && req.method==='GET'){reply(200,await call('view'));return true;}
   if(route==='guest-approve' && req.method==='POST'){reply(200,await call('approve',{revision:body.revision,consent:body.consent===true}));return true;}
   if(route==='guest-sign' && req.method==='POST'){reply(201,await call('sign',{form_id:body.form_id,visit:body.visit,name:body.name,consent:body.consent===true,electronic:body.electronic===true,answers:body.answers || {}}));return true;}

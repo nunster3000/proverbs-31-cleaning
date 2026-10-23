@@ -54,6 +54,7 @@ test("disabled backend exposes neither keys nor live services", async () => {
     enabled: false,
     authEnabled: false,
     siteMode: "launch",
+    paymentsEnabled: false,
     notificationsEnabled: false,
     url: null,
     key: null,

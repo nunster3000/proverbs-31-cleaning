@@ -19,7 +19,7 @@ const booking={id:'ref-123',visit_date:'2026-11-01',arrival:'09:00-12:00',quote_
 test('all queued notification kinds render without sending and guest emails do not promise portal access',()=>{
  for(const kind of kinds){const email=renderEmail(kind,booking);assert.ok(email.subject);assert.match(email.text,/ref-123/);assert.match(email.html,/contact.html/);assert.doesNotMatch(email.html,/workspace.html/);}
  const quote=renderEmail('quote_ready',booking,{accountEnabled:true});assert.match(quote.html,/&lt;script&gt;/);assert.doesNotMatch(quote.html,/<script>/);assert.match(quote.html,/workspace.html/);
- const balance=renderEmail('final_balance_ready',booking);assert.match(balance.text,/\$125.00/);assert.match(balance.text,/online payment processing is not available/i);
+ const balance=renderEmail('final_balance_ready',booking);assert.match(balance.text,/\$125.00/);assert.match(balance.text,/available payment options/i);
 });
 test('upload retries reuse their pending reservation instead of consuming another file slot',async()=>{
  let reservations=0,transfers=0,finishes=0;

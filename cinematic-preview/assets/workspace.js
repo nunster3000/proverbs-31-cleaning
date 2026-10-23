@@ -191,7 +191,7 @@
     const attentionLabels=getAttentionLabels();
     const win=n('dialog',undefined,'attention-sheet');win.setAttribute('aria-label',attentionLabels[kind]);
     const head=n('div',undefined,'dialog-header');head.append(n('h2',attentionLabels[kind]),btn('×',()=>win.close(),'close'));win.append(head);
-    win.append(n('p',kind==='access'?'Read and sign your home-access permission form before Gabrielle heads to your visit.':me.role==='owner'?(kind==='change'?'Requests stay here until an admin approves or declines them.':kind==='walkthrough'?'Walkthroughs stay here until their review is saved.':'Opening a booking clears its current new-item badge. Future updates can create a new badge.'):(kind==='change'?'Open the booking to read the admin’s decision.':kind==='review'?'Opening the booking clears this review notice.':kind==='approval'?'Your price stays flagged until you approve the current reviewed total.':'Your final balance stays flagged until payment is recorded. Contact the company to arrange payment.'),'fine'));
+    win.append(n('p',kind==='access'?'Read and sign your home-access permission form before Gabrielle heads to your visit.':me.role==='owner'?(kind==='change'?'Requests stay here until an admin approves or declines them.':kind==='walkthrough'?'Walkthroughs stay here until their review is saved.':'Opening a booking clears its current new-item badge. Future updates can create a new badge.'):(kind==='change'?'Open the booking to read the admin’s decision.':kind==='review'?'Opening the booking clears this review notice.':kind==='approval'?'Your price stays flagged until you approve the current reviewed total.':'Your final balance stays flagged until payment is verified. Open your booking to view payment options.'),'fine'));
     const items=(state.attention?.items || []).filter(item=>item.kind===kind);
     if(!items.length)win.append(n('p','You’re all caught up.'));
     items.forEach(item=>{const row=n('div',undefined,'list-row');row.append(n('p',(item.customer_name?item.customer_name+' · ':'')+(labels[item.service] || '')+' · '+item.visit_date+(item.amount_cents!==null && item.amount_cents!==undefined?' · '+money(item.amount_cents):'')),btn('Open booking',async()=>{const b=await L.api('booking',{query:{id:item.booking_id}});const index=records.findIndex(row=>row.id===b.id);if(index<0)records.push(b);else records[index]=b;win.close();detail(b,kind==="access");}));win.append(row);});
@@ -297,7 +297,7 @@
       n(
         "p",
         b.invoice_issued
-          ? "A final balance has been issued. Online payment processing is not connected; contact the company to arrange payment."
+          ? "A final balance has been issued. Open Payments & next steps to view payment options."
           : "*Starting amounts only. Final pricing follows walkthrough review and customer approval.",
         "fine",
       ),
@@ -335,8 +335,10 @@
       b.setAttribute("aria-current", b.dataset.view === view ? "page" : "false");
     });
     if (view === "Bookings" || view === "Walkthroughs" || view === "Payments") {
-      if (me.role === "owner")
+      if (me.role === "owner"){
         root.append(btn("Add manual booking", manual, "primary"));
+        if(view==='Payments' && L.config.paymentsEnabled){const reviews=section('Stripe payment review');root.append(reviews);L.api('payment-reviews').then(rows=>{if(!rows.length){reviews.remove();return;}rows.forEach(item=>reviews.append(n('p','Payment received needs review: '+money(item.cents)+' · '+item.kind+' · Booking '+item.booking_id+' · '+item.payment_intent)));reviews.append(n('p','Check the payment in Stripe before reconciling it. No automatic refund or fee has been applied.','fine'));}).catch(()=>reviews.append(n('p','Unable to load Stripe reviews. Try again.')));}
+      }
       let list = records;
       if (view === "Walkthroughs")
         list = list.filter(
@@ -878,7 +880,7 @@
     if ((b.payment_records || []).length) {
       const history=section("Payments recorded");
       b.payment_records.forEach(payment=>history.append(n("p",money(payment.cents)+" · "+payment.kind+" · "+payment.method+" · "+new Date(payment.created_at).toLocaleDateString("en-US", {timeZone: "America/New_York"}))));
-      history.append(n("p","These are payments recorded by the company. No card transaction is processed on this website yet.","fine"));root.append(history);
+      history.append(n("p","Payments shown here include verified Stripe payments and payments recorded by Gabrielle.","fine"));root.append(history);
     }
     if(me.role!=='owner'){
       (b.booking_requests || []).forEach(request=>info.append(n('p',(request.kind==='cancel'?'Cancellation':'Rescheduling')+' request · '+(request.resolved?(request.decision || 'Reviewed'):'Awaiting admin review')+' · '+request.notes+(request.review_notes?' · Admin: '+request.review_notes:''),'request-status')));
@@ -1020,7 +1022,17 @@
       const payments=section("Payments & next steps");payments.dataset.checklistTarget="payments";
       payments.append(n("p","Starting-price deposit: "+money(b.quote_snapshot.deposit_cents)+" · Recorded deposit: "+money(b.deposit_paid_cents)));
       payments.append(n("p",b.invoice_issued?"Final balance: "+money(figures.balance):"Your final balance has not been issued yet."));
-      payments.append(n("p","Contact Gabrielle to arrange payment or ask about a payment already sent. Online payment processing is not connected. Your checklist updates when Gabrielle records the payment."));
+      if(L.config.paymentsEnabled && b.status!=='cancelled'){
+        const due=b.invoice_issued && figures.balance>0?'final':b.deposit_paid_cents<b.quote_snapshot.deposit_cents?'deposit':null;
+        if(due){
+          const amount=due==='deposit'?b.quote_snapshot.deposit_cents-b.deposit_paid_cents:figures.balance;
+          const pay=btn((due==='deposit'?'Pay booking deposit · ':'Pay final balance · ')+money(amount),async()=>{
+            pay.disabled=true;
+            try{await P31Payments.start({booking:b,loadPolicies:()=>L.api('public-policies'),request:policy=>L.api('checkout',{method:'POST',data:{id:b.id,kind:due,policy}})});pay.disabled=false;}catch(e){msg(e.message);pay.disabled=false;}
+          },'primary');payments.append(pay,n('p','Your payment is handled securely by Stripe. Your booking updates after payment verification.','fine'));
+        }else payments.append(n('p','No payment is due at this step. Your final balance will appear after it is issued.'));
+      }else payments.append(n('p','Contact Gabrielle to arrange payment or ask about a payment already sent.'));
+
       const contact=n("a","Contact Gabrielle","outline");contact.href="contact.html";contact.target="_blank";contact.rel="noopener noreferrer";contact.setAttribute("aria-label","Contact Gabrielle (opens a new tab)");payments.append(contact);root.append(payments);
     }
     completionMedia(b,root);
@@ -1189,7 +1201,7 @@
           "Approval recorded.",
         ),
     );
-    const issue=btn("Issue final balance",()=>act(()=>action(b,"issue_invoice",{}),"Final balance issued. Email delivery is pending provider setup."));
+    const issue=btn("Issue final balance",()=>act(()=>action(b,"issue_invoice",{}),"Final balance issued. Notification delivery follows the current email settings."));
     issue.disabled=!b.reviewed || b.quote_status!=='accepted' || b.status!=='completed' || b.final_cents===null || b.invoice_issued;
     review.append(issue);
     root.append(review);
@@ -1239,7 +1251,7 @@
     pay.append(
       n(
         "p",
-        "Only record money actually received. The website does not process cards or automatically mark deposits paid.",
+        "Only record money actually received outside Stripe. Stripe payments are recorded automatically after verification; do not enter them a second time.",
         "fine",
       ),
     );

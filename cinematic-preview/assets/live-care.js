@@ -17,6 +17,7 @@ window.P31LiveCareReady = (async () => {
     "Apartment Cleaning": "apartment",
     "Airbnb Turnover": "airbnb",
   };
+  let submittedRecords = null;
   let serverQuote = null,
     availability = new Map(),
     months = new Set(),
@@ -116,7 +117,7 @@ window.P31LiveCareReady = (async () => {
   const footer = document.querySelector("footer span:last-child");
   if (footer)
     footer.textContent =
-      "Booking requests are saved securely. No payment is collected on this website yet.";
+      L.config.paymentsEnabled?'Pay your starting-price deposit securely with Stripe after submitting your booking.':'Booking requests are saved securely. Contact Gabrielle to arrange payment.';
   document
     .querySelectorAll(".account-options>.fine")
     .forEach(
@@ -190,7 +191,7 @@ window.P31LiveCareReady = (async () => {
       document.querySelector("#payment h2").textContent =
         "Review your booking request.";
       document.querySelector("#payment .muted").textContent =
-        "No payment will be taken. Your deposit will be arranged with the company.";
+        L.config.paymentsEnabled?'Save your request, then pay the starting-price deposit securely with Stripe.':'Your deposit will be arranged with the company.';
       document.querySelector("#next").textContent = "Submit booking request";
       document
         .querySelectorAll(
@@ -198,7 +199,7 @@ window.P31LiveCareReady = (async () => {
         )
         .forEach((n) => (n.hidden = true));
       document.querySelector("#payment .payment-banner").textContent =
-        "Online payments are not connected. No deposit has been collected.";
+        L.config.paymentsEnabled?'Your deposit is applied toward your service total. Final pricing follows walkthrough review.':'No deposit has been collected.';
     }
   };
   offeredBlocks = (d) =>
@@ -323,10 +324,11 @@ window.P31LiveCareReady = (async () => {
               }
             : { kind: "once" },
         };
-        const records = await L.api("bookings", {
+        const records = submittedRecords || await L.api("bookings", {
           method: "POST",
           data: { request_id: requestId, booking: payload },
         });
+        submittedRecords = records;
         sessionStorage.removeItem("p31-live-request");
         const dialog = document.createElement("dialog");
         dialog.className = "live-auth";
@@ -350,6 +352,11 @@ window.P31LiveCareReady = (async () => {
           link.textContent = "Return home";
           p.textContent +=
             " Keep this reference. Contact Gabrielle for a private booking link to upload your walkthrough, approve your reviewed price, and sign the home-access form. No email has been sent by this website.";
+        }
+        if(L.config.paymentsEnabled){
+          link.textContent='Pay booking deposit · '+money(records[0].quote_snapshot.deposit_cents/100);
+          link.href='#';link.onclick=async event=>{event.preventDefault();if(link.getAttribute('aria-disabled')==='true')return;link.setAttribute('aria-disabled','true');try{await P31Payments.start({booking:records[0],loadPolicies:()=>L.api('public-policies'),request:policy=>L.api('checkout',{method:'POST',data:{id:records[0].id,kind:'deposit',policy}})});link.removeAttribute('aria-disabled');}catch(e){p.textContent=e.message+' Your booking request is saved. You can retry payment.';link.removeAttribute('aria-disabled');}};
+          p.textContent=records.length+' visit request(s) saved. Pay the first visit’s starting-price deposit to complete this booking step. Future visits are paid separately; no automatic recurring charges are authorized.';
         }
         const stars = document.createElement("div");
         stars.id = "celebration";

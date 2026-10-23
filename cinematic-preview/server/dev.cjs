@@ -18,6 +18,7 @@ const types = {
 };
 http
   .createServer(async (req, res) => {
+    if(req.url.split('?')[0]==='/api/stripe-webhook')return require('./payments.cjs').createWebhookHandler()(req,res);
     if (req.url.startsWith("/api/app")) {
       let body = "";
       try {

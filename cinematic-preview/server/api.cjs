@@ -1,3 +1,4 @@
+const {checkout,paymentConfigured}=require('./payments.cjs');
 const {launchState,effectiveEnv}=require('./launch-clock.cjs');
 const { renderEmail } = require("./email-templates.cjs");
 const {handleGuest,secret:guestSecret,digest:guestDigest}=require("./guest-access.cjs");
@@ -74,6 +75,7 @@ function createHandler({
           authEnabled: configured && (ownerBootstrap || env.AUTH_ENABLED === "true"),
           ...(ownerBootstrap?{ownerPreview:true}:{}),
           siteMode: "launch",
+          paymentsEnabled: configured && paymentConfigured(env),
           notificationsEnabled: configured && env.AUTH_ENABLED === "true" && env.NOTIFICATIONS_ENABLED === "true" && !!env.RESEND_API_KEY && !!env.CRON_SECRET,
           guestPortalEnabled: configured && env.AUTH_ENABLED === "true" && env.GUEST_PORTAL_ENABLED === "true",
           url: configured && (!launch.pending||ownerBootstrap) ? env.SUPABASE_URL : null,
@@ -189,7 +191,7 @@ function createHandler({
         if(!owner)throw new HttpError(403,'Owner access required');
         if(!['GET','POST'].includes(req.method))throw new HttpError(405,'Method not allowed');
         const prepared=await rpc('api_launch_preparation',{p_action:req.method==='GET'?'read':body.action,p_data:body.data||{},p_expected:body.revision??null});
-        return reply(200,{...prepared,technical:{publicSignIn:!launch.pending&&env.AUTH_ENABLED==='true',automaticEmails:env.NOTIFICATIONS_ENABLED==='true',guestAccess:env.GUEST_PORTAL_ENABLED==='true',captchaConfigured:!!env.TURNSTILE_SITE_KEY,processorConnected:false}});
+        return reply(200,{...prepared,technical:{publicSignIn:!launch.pending&&env.AUTH_ENABLED==='true',automaticEmails:env.NOTIFICATIONS_ENABLED==='true',guestAccess:env.GUEST_PORTAL_ENABLED==='true',captchaConfigured:!!env.TURNSTILE_SITE_KEY,processorConnected:paymentConfigured(env)}});
       }
       if (route === "me" && req.method === "GET")
         return reply(200, {
@@ -212,6 +214,11 @@ function createHandler({
           }),
         );
       }
+      if(route==='checkout' && req.method==='POST'){
+        if(user.is_anonymous && env.GUEST_CHECKOUT_ENABLED!=='true')throw new HttpError(403,'Guest checkout is not available.');
+        return reply(200,await checkout({env,bookingId:body.id,kind:body.kind,actor:user.id,policy:body.policy||{},clientFactory}));
+      }
+      if(route==='payment-reviews' && req.method==='GET')return reply(200,await rpc('api_payment_reviews',{}));
       if (user.is_anonymous)
         throw new HttpError(403, "Account sign-in is required for this page.");
       if(route==='agreement-draft' && ['GET','POST'].includes(req.method)){
