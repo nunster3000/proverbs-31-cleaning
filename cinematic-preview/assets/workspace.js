@@ -1193,6 +1193,7 @@
           "Adjustment saved; earlier quote approval has been reset.",
         ),
     );
+    review.append(n("p","Adjust the full service total above. The recorded deposit and any other payments are deducted automatically when the final balance is issued. Do not subtract the deposit as a pricing adjustment.","fine"));
     review.append(n("p","1. Review the walkthrough. 2. Explain any pricing adjustments. 3. Prepare the quote for customer approval. Completing the visit and issuing a balance require approval.","fine"));
     const prepare = btn("Prepare reviewed quote", () =>
         act(
@@ -1213,7 +1214,7 @@
           "Approval recorded.",
         ),
     );
-    const issue=btn("Issue final balance",()=>act(()=>action(b,"issue_invoice",{}),"Final balance issued. Notification delivery follows the current email settings."));
+    const issue=btn("Issue final balance · "+money(Math.max(0,(b.final_cents ?? b.quote_snapshot.total_cents)-b.deposit_paid_cents-b.final_paid_cents)),()=>act(()=>action(b,"issue_invoice",{}),"Final balance issued. Notification delivery follows the current email settings."));
     issue.disabled=!b.reviewed || b.quote_status!=='accepted' || b.status!=='completed' || b.final_cents===null || b.invoice_issued;
     review.append(issue);
     root.append(review);
