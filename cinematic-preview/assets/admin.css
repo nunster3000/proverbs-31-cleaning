@@ -873,3 +873,8 @@ input[type="file"] {
 .account-closure button { min-height:48px; white-space:normal; margin:8px 8px 8px 0; }
 .account-closure article { overflow-wrap:anywhere; }
 @media(max-width:480px){.account-closure button { width:100%; margin:8px 0; }.account-closure fieldset { min-width:0; }.account-closure input[type="text"] { width:100%; min-width:0; }}
+.admin-notifications .notification-controls {display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:20px 0;}
+.admin-notifications .notification-controls select {min-height:48px;max-width:100%;}
+.admin-notifications .deletion-notice {border-left:3px solid #b58c51;margin:16px 0;overflow-wrap:anywhere;}
+.admin-notifications .deletion-notice button {min-height:48px;margin:6px 10px 6px 0;white-space:normal;}
+@media(max-width:600px){.admin-notifications .notification-controls>*{width:100%;}.admin-notifications .deletion-notice button{width:100%;margin:6px 0;}}

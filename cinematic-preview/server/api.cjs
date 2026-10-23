@@ -193,7 +193,7 @@ function createHandler({
       if (!user.is_anonymous && !user.email_confirmed_at)
         throw new HttpError(403, "Verify your email before continuing.");
       const owner = !!(await rpc("is_owner", {}));
-      if(['account-closure','account-closure-notices','account-refunds'].includes(route)){
+      if(['account-closure','account-closure-notices','account-refunds','closure-notifications'].includes(route)){
         if(env.ACCOUNT_DELETION_ENABLED!=='true')throw new HttpError(503,'Account deletion is being prepared. Please contact the business for assistance.');
         if(await require('./account-closure.cjs').handleClosure({route,req,body,user,owner,token,db,env,reply,clock}))return;
       }
@@ -454,6 +454,7 @@ function createHandler({
           ),
           notes: await read(db.from("owner_notes").select("*")),
           attention: await rpc("api_owner_attention", {}),
+          deletionUpdates: await rpc("api_closure_notifications", {}),
           accountClosures: await rpc("api_account_closure_notices", {}),
           accountRefunds: await rpc("api_account_refunds", {}),
         });

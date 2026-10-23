@@ -8,7 +8,7 @@ function recentAuthentication(token,now=Date.now()){
 }
 // Must be called only after getUser() has verified the JWT. Never trust a body user ID.
 async function handleClosure({route,req,body,user,owner,token,db,env,reply,clock=Date.now}){
- if(!['account-closure','account-closure-notices','account-refunds'].includes(route))return false;
+ if(!['account-closure','account-closure-notices','account-refunds','closure-notifications'].includes(route))return false;
  if(user.is_anonymous)fail(403,'Sign into your customer account first.');
  let name,args;
  if(route==='account-closure'){
@@ -22,27 +22,29 @@ async function handleClosure({route,req,body,user,owner,token,db,env,reply,clock
  }else{
   if(!owner)fail(403,'Owner access required');
   if(!['GET','POST'].includes(req.method))fail(405,'Method not allowed');
-  name=route==='account-refunds'?'api_account_refunds':'api_account_closure_notices';
-  args=route==='account-refunds'?{p_id:body.id||null,p_reference:body.reference||null}:{p_read:body.id||null};
+  name=route==='closure-notifications'?'api_closure_notifications':route==='account-refunds'?'api_account_refunds':'api_account_closure_notices';
+  args=route==='closure-notifications'?{p_read:body.ids||[],p_retry:body.retry||null}:route==='account-refunds'?{p_id:body.id||null,p_reference:body.reference||null}:{p_read:body.id||null};
  }
  const r=await db.rpc(name,args);if(r.error)throw r.error;
  if(req.closureReceipt)reply.cookie='p31_closure='+req.closureReceipt+'; HttpOnly; SameSite=Strict; Path=/api/app; Max-Age=7776000'+(env.NODE_ENV==='production'||env.VERCEL==='1'?'; Secure':'');
- reply(req.method==='POST'?202:200,r.data);return true;
+ reply(req.method==='POST'?202:200,route==='closure-notifications'?{...r.data,emailDeliveryEnabled:env.AUTH_ENABLED==='true'&&env.NOTIFICATIONS_ENABLED==='true'&&!!env.RESEND_API_KEY}:r.data);return true;
 }
 async function processClosure({db,env,id,stripeFactory=key=>new Stripe(key,{maxNetworkRetries:2,timeout:15000})}){
  let lease;
  const rpc=async(action,data={})=>{const r=await db.rpc('service_account_closure',{p_action:action,p_id:id,p_data:{...data,...(lease?{lease_token:lease}:{})}});if(r.error)throw r.error;return r.data;};
  const job=await rpc('claim');if(!job)return {skipped:true};lease=job.lease_token;
+ const observe=async(code=null)=>{const r=await db.rpc('service_closure_observe',{p_id:id,p_code:code,p_lease:lease});if(r.error)throw r.error;return r.data||{};};
+ const wait=async(code=null)=>{await observe(code);return {waiting:true};};
  try{
   if(job.state==='completed'){const files=await rpc('sweep');for(const f of files){const r=await db.storage.from(f.bucket).remove([f.path]);if(r.error)throw Error('storage_removal');}return {swept:true};}
 
-  if(job.preview.upcoming.length&&job.mode==='keep')return {waiting:true};
+  if(job.preview.upcoming.length&&job.mode==='keep')return await wait();
   // Processor reconciliation precedes any deletion. This app does not save reusable cards.
   // Unexpected reusable profiles or subscriptions require technical reconciliation, never deletion by email.
   let stripe;
   const payments=job.payments||[],refunds=job.refunds||[];
   for(const attempt of job.checkouts||[]){
-   if(Date.parse(attempt.expires_at)>Date.now())return {waiting:true};
+   if(Date.parse(attempt.expires_at)>Date.now())return await wait('payment_processing');
    if(!env.STRIPE_SECRET_KEY||!attempt.session_id)throw Error('checkout_reconciliation');
    stripe ||= stripeFactory(env.STRIPE_SECRET_KEY);
    let session=await stripe.checkout.sessions.retrieve(attempt.session_id);
@@ -81,7 +83,9 @@ async function processClosure({db,env,id,stripeFactory=key=>new Stripe(key,{maxN
     if(charge.amount_refunded>refund.cents)throw Error('refund_reconciliation');
    }else if(charge.amount_refunded)throw Error('refund_reconciliation');
   }
-  if(job.preview.holds.some(h=>!h.startsWith('A refund is awaiting')))return {waiting:true};
+  if(job.preview.holds.some(h=>!h.startsWith('A refund is awaiting')))return await wait();
+  const previousCleanupIssue=!job.auth_removed&&['storage_removal','auth_removal','maintenance_retry','business_records'].includes(job.last_error)?(job.last_error==='business_records'?'business_records':'technical_retry'):null;
+  if((await observe(previousCleanupIssue)).delivery_pending)return {waiting:true};
   // Re-check refunds and all balances atomically in SQL before freezing customer access.
   await rpc('freeze');
   const files=await rpc('files');
@@ -93,8 +97,12 @@ async function processClosure({db,env,id,stripeFactory=key=>new Stripe(key,{maxN
   // Auth hard-delete also removes refresh sessions. RLS's closure tombstone rejects old JWTs.
   const removed=await db.auth.admin.deleteUser(job.user_id,false);
   if(removed.error&&removed.error.status!==404&&removed.error.code!=='user_not_found')throw Error('auth_removal');
+  if((await observe()).delivery_pending)return {waiting:true};
   await rpc('complete');return {completed:true};
- }catch(error){await rpc('release',{error:/^[a-z_]{1,80}$/.test(error.message)?error.message:'maintenance_retry'});return {waiting:true};}
+ }catch(error){
+  const category=error.message==='refund_pending'?'refund_pending':error.message==='payment_processing'?'payment_processing':/^(processor_configuration|checkout_reconciliation|payment_reconciliation|saved_payment_profile_review|refund_reconciliation)$/.test(error.message)?'payment_review':/Business records require safe reassignment/.test(error.message)?'business_records':'technical_retry';
+  try{await observe(category);}catch{}
+  await rpc('release',{error:/^[a-z_]{1,80}$/.test(error.message)?error.message:category==='business_records'?'business_records':'maintenance_retry'});return {waiting:true};}
  finally{await rpc('release',{});}
 }
 function createAccountMaintenanceHandler({env=process.env,clientFactory=createClient,stripeFactory,send=fetch}={}){
@@ -107,6 +115,7 @@ function createAccountMaintenanceHandler({env=process.env,clientFactory=createCl
    const db=clientFactory(env.SUPABASE_URL,env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
    const queue=await db.rpc('service_account_closure',{p_action:'queue'});if(queue.error)throw Error();
    let completed=0;for(const job of queue.data||[]){const r=await processClosure({db,env,id:job.id,stripeFactory});if(r.completed)completed++;}
+   const delivery=await require('./account-closure-emails.cjs').deliverClosureIssueEmails({db,env,send});
    const notices=await db.rpc('service_account_closure',{p_action:'notices'});if(notices.error)throw Error();
    // Owner notification is a privacy receipt, independent of automatic customer emails.
    for(const notice of notices.data||[]){
@@ -114,7 +123,7 @@ function createAccountMaintenanceHandler({env=process.env,clientFactory=createCl
     const r=await send('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+env.RESEND_API_KEY,'Content-Type':'application/json','Idempotency-Key':'p31-account-deleted-'+notice.id},body:JSON.stringify({from:'Proverbs 31 Cleaning Co. <gabriellejackson@proverbs31cleaningcoservices.info>',to:['gabriellejackson@proverbs31cleaningcoservices.info'],subject:'Customer account deleted · Proverbs 31',text:'A customer account was deleted automatically after its bookings and payments were resolved. Reference: '+notice.id+'. Required service, invoice and signed-agreement history remains available in Privacy & operations. The customer login, profile details and operational uploads were removed. No approval is needed.'}),signal:AbortSignal.timeout(15000)});
     if(!r.ok||!(await r.json()).id)throw Error();const saved=await db.rpc('service_account_closure',{p_action:'notified',p_id:notice.id});if(saved.error)throw Error();
    }
-   return reply(200,{enabled:true,processed:queue.data.length,completed});
+   return reply(200,{enabled:true,processed:queue.data.length,completed,customerUpdates:delivery});
   }catch{return reply(503,{error:'Account maintenance needs another attempt'});}
  };
 }

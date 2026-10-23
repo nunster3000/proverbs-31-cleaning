@@ -183,11 +183,13 @@
     }
     if(me.role==='owner'){
       const count=(state.accountClosures||[]).filter(x=>!x.read).length+(state.accountRefunds||[]).length;
+      const unread=Number(state.deletionUpdates?.unread||0),open=Number(state.deletionUpdates?.open||0),email=Number(state.deletionUpdates?.email_failures||0);
+      tools.append(btn('Notifications · '+unread+' unread · '+open+' open'+(email?' · '+email+' email issues':''),()=>navigateWorkspace('Notifications'),'attention-pill'));
       const b=btn('Account & refund notices · '+count,()=>navigateWorkspace('Privacy & operations'),'attention-pill');b.setAttribute('aria-label','Account and refund notices: '+count);tools.append(b);
     }
     root.append(tools);
     for(const node of document.querySelectorAll('#workspace-nav button,#mobile-workspace-nav button')){
-      const name=node.dataset.view || node.dataset.mobileView,kinds=(me.role==='owner'?{Bookings:['booking'],Walkthroughs:['walkthrough'],Payments:['approval'],'Proverbs 31 Cal':['change']}:{Bookings:['approval','change','access'],Walkthroughs:['review'],Payments:['payment']})[name] || [],count=kinds.reduce((sum,kind)=>sum+Number(attention.counts[kind] || 0),0),description=kinds.map(kind=>attentionLabels[kind]).join(' / ');
+      const name=node.dataset.view || node.dataset.mobileView,kinds=(me.role==='owner'?{Bookings:['booking'],Walkthroughs:['walkthrough'],Payments:['approval'],'Proverbs 31 Cal':['change']}:{Bookings:['approval','change','access'],Walkthroughs:['review'],Payments:['payment']})[name] || [],count=kinds.reduce((sum,kind)=>sum+Number(attention.counts[kind] || 0),0)+(me.role==='owner'&&['Notifications','More'].includes(name)?Number(state.deletionUpdates?.unread||0):0),description=kinds.map(kind=>attentionLabels[kind]).join(' / ');
       node.querySelector('.notification-badge')?.remove();
       if(count){const badge=n('span',count>99?'99+':String(count),'notification-badge');badge.setAttribute('aria-hidden','true');node.append(badge);}
       node.setAttribute('aria-label',name+(count?' · '+count+' '+description.toLowerCase():''));
@@ -688,6 +690,8 @@
       P31Social.platforms.forEach(p=>{const group=n('fieldset');group.append(n('legend',p.label));const {visible,url}=socialFields[p.id];group.append(label('Show '+p.label+' icon',visible),label(p.label+' page URL',url));socials.append(group);});
       pageForm.insertBefore(socials,pageForm.lastElementChild);
       root.append(box);
+    } else if (view === "Notifications") {
+      root.append(P31Notifications.render({api:L.api,navigate:name=>navigateWorkspace(name)}));
     } else if (view === "Privacy & operations") {
       root.append(P31Privacy.render({api:L.api}));
     } else if (view === "Launch preparation") {
@@ -1585,6 +1589,7 @@
             "Pricing",
             "Launch preparation",
             "Privacy & operations",
+            "Notifications",
             "Website content",
             "Forms & agreements",
             "Activity",

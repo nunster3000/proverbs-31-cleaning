@@ -7,6 +7,7 @@ function assessHealth(data,now=Date.now()){
  if(Number.isFinite(failed)&&(!Number.isFinite(last)||failed>last))alerts.push('The latest backup attempt failed.');
  if(Number(data.account_deletion_failures)>0)alerts.push('An account deletion needs technical or payment reconciliation.');
  if(Number(data.account_deletion_notification_failures)>0)alerts.push('An account deletion notice has not reached the owner.');
+ if(Number(data.account_deletion_customer_email_failures)>0)alerts.push('Customer account-deletion updates need email delivery review.');
  if(Number(data.email_failures)>0)alerts.push('Customer email deliveries need review in the admin dashboard.');
  return {alerts,shouldNotify:alerts.length>0&&(!b.alerted_at||now-Date.parse(b.alerted_at)>24*3600000)};
 }

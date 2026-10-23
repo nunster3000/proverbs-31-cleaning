@@ -41,3 +41,15 @@ Deleting the operational account does not rewrite existing encrypted backup snap
 - Mock processor: known refund resumption, disputed/shared-profile refusal, storage failure before Auth removal, cron authentication.
 - Mobile browser: 390-pixel customer controls, acknowledgment/DELETE validation and scheduled-deletion state using fictional data only.
 - No live account deletion, payment or refund was executed for verification. Production migration preserved three Auth users, zero bookings and the sole owner.
+
+## Customer and owner issue notifications
+
+Admin → Notifications now shows deletion issues, unread counts, current open issues, customer email delivery state, and a manual retry for held deliveries. Reading a notice does not resolve the issue or approve deletion. The existing mobile More menu and dashboard attention area expose the section and its badge.
+
+The maintenance worker observes unresolved billing, payment verification, processing checkouts, pending refunds, externally recorded refunds, cleanup failures and business-record reassignment. It records a new update only when the observed issue categories change. Repeated retries of an unchanged failure do not create repeated customer emails. A resolution update explicitly says deletion is continuing, rather than falsely claiming it has completed. Persistent cleanup failures remain open until the failing cleanup stage succeeds.
+
+Customer emails use the existing branded layout and small logo. Recipients come from verified Auth data, not form-submitted email addresses. Technical/provider errors and home details are never inserted into these emails. Customer delivery follows the existing launch/authentication and notification switches; the countdown and authentication settings remain unchanged.
+
+Emails have durable leases, stable provider idempotency keys and automatic retry backoff. After five failed attempts or the 23-hour automatic retry window, delivery remains held and visible to the owner, who can explicitly requeue it. The technical health monitor also flags held customer deletion updates. Provider acceptance is displayed as acceptance, not a guarantee of inbox placement.
+
+Unsent issue/resolution emails prevent final deletion from silently losing the contact needed to inform the customer. While a request is still incomplete, a private copy of the verified email can survive Auth removal solely to finish these updates. It is cleared when deletion finishes or the request is withdrawn; delivered queue rows also remove their recipient. Withdrawing a request supersedes unsent updates. Minimal issue categories, timestamps and delivery receipts remain as private business audit history.
