@@ -76,3 +76,6 @@ test('scheduled deletion does not interrupt a kept visit or an active final-paym
   const r=await processClosure({db,env:{STRIPE_SECRET_KEY:'sk_test_fixture'},id:'j',stripeFactory:()=>{processorUsed=true;throw Error();}});assert.equal(r.waiting,true);assert.equal(processorUsed,false);assert.equal(removed,false);
  }
 });
+test('maintenance leases fence duplicate workers and stale mutation attempts',async()=>{
+ await service();const jobs=await worker('queue',null);assert.ok(jobs.length);const id=jobs[0].id;const claimed=await worker('claim',id);assert.ok(claimed.lease_token);assert.equal(await worker('claim',id),null);await assert.rejects(()=>worker('release',id,{lease_token:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'}),/lease changed/);await worker('release',id,{lease_token:claimed.lease_token});
+});
