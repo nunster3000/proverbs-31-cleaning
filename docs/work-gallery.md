@@ -1,0 +1,13 @@
+# Completed-work gallery
+
+Gabrielle manages **Work gallery** from the owner dashboard (More on mobile). There are ten total slots, including drafts and unfinished uploads. A new upload stays private until it has passed file verification, the owner confirms permission to share it publicly, and Show on website is saved.
+
+Visitors browse the warm ivory/gold Cover Flow carousel on the home page and the dedicated Our Work page. Neighboring covers tilt and slide toward the center using a 700 ms eased transition, with subtle reflections. Swipe/drag, previous/next buttons, keyboard arrows, and a range scrubber select a cover; selecting the centered cover opens the photo/video viewer. Photos and videos can be filtered. Videos play only through visitor controls. Reduced-motion preferences use a short opacity transition and no reflection.
+
+Only authenticated verified owners can reserve, edit, reorder, publish, or remove items. Direct table access is revoked. Public listing returns only ready, explicitly published items. Gallery assets use a separate private work-gallery bucket, never the private customer walkthrough bucket. The API issues five-minute read URLs for selected public items; expired viewer URLs can be refreshed. Removal deletes the bucket object before marking the item removed. Existing backups can retain encrypted copies according to backup retention.
+
+Photos: JPEG/PNG/WebP, up to 20 MiB; HEIC/HEIF uses the existing conversion helper. Browser preparation limits images to 2560 pixels and re-encodes as JPEG, removing EXIF/location metadata. Videos: MP4/MOV/WebM up to 50 MiB. MP4 offers the broadest playback compatibility; owners must preview files before publishing. Original video metadata is not stripped. Uploads go directly to signed Supabase Storage URLs, rather than through Vercel request bodies. The server checks file header bytes and Storage byte-count/MIME metadata before marking ready; service-only finalization cannot be invoked by customers or owners directly.
+
+Gallery creation is serialized with a transaction advisory lock, including pending uploads, enforcing the ten-item ceiling. An interrupted transfer can be retried without allocating another slot. Uploading/draft items can be removed to free a slot. Owner-side caption edits are rendered using textContent, and public gallery metadata never includes private booking data.
+
+The home section stays hidden until there is real published work. The dedicated page has an honest empty state. No stock or demonstration work was published. The October 26, 2026, 5 AM Eastern countdown remains in force; only verified owner-preview sessions can browse before opening. This feature does not change authentication, payment, or customer-notification settings.

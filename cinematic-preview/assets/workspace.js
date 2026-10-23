@@ -673,6 +673,8 @@
         });
         root.append(box);
       });
+    } else if (view === "Work gallery") {
+      root.append(P31GalleryAdmin.render({api:L.api,onDirty:value=>workspaceDirty=value}));
     } else if (view === "Website content") {
       root.append(n('p','Update the About Us and Contact pages. Saved changes are public. Leave the phone number blank to hide it until you are ready.','fine'));
       if(!siteContent){root.append(btn('Load website content',()=>act(async()=>{siteContent=await L.api('site-content')})));return;}
@@ -1592,6 +1594,7 @@
             "Privacy & operations",
             "Notifications",
             "Website content",
+            "Work gallery",
             "Forms & agreements",
             "Activity",
           ]

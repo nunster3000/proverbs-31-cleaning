@@ -1,6 +1,6 @@
 const {launchState}=require('./launch-clock.cjs');
 const ORIGIN='https://www.proverbs31cleaningcoservices.info';
-const PUBLIC=['/','/index.html','/services.html','/about.html','/contact.html','/privacy.html','/service-information.html'];
+const PUBLIC=['/','/index.html','/services.html','/gallery.html','/about.html','/contact.html','/privacy.html','/service-information.html'];
 function searchPolicy(url,env=process.env,now=Date.now()){
  const u=new URL(url),open=!launchState(env,now).pending&&env.LAUNCH_HOLD!=='true'&&u.origin===ORIGIN&&env.VERCEL_ENV!=='preview';
  const index=open&&PUBLIC.includes(u.pathname);

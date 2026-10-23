@@ -164,6 +164,9 @@ function createHandler({
         env.AUTH_ENABLED='true';
       }
       if(route==='public-policies'&&req.method==='GET')return reply(200,await rpc('api_public_policies',{}));
+      const galleryRoutes=['gallery','gallery-reserve','gallery-finish','gallery-update','gallery-remove','gallery-reorder'];
+      const galleryHandler=(isOwner)=>require('./gallery.cjs').gallery({route,req,body,owner:isOwner,rpc,privileged:clientFactory(env.SUPABASE_URL,env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}}),fetchFile,reply});
+      if(route==='gallery'&&req.method==='GET'&&url.searchParams.get('manage')!=='1')return await galleryHandler(false);
       if (route === 'site-content' && req.method === 'GET') {
         const row=await read(db.from('site_content').select('*').single());
         return reply(200,{...row,photo_url:row.photo_path?db.storage.from('site-media').getPublicUrl(row.photo_path).data.publicUrl:null});
@@ -438,6 +441,7 @@ function createHandler({
         if(error)throw error;
         return reply(201,{path,url:privileged.storage.from('site-media').getPublicUrl(path).data.publicUrl});
       }
+      if(galleryRoutes.includes(route)){if(!owner)throw new HttpError(403,'Owner access required');return await galleryHandler(owner);}
       if (route === "owner-state" && req.method === "GET") {
         if (!owner) throw new HttpError(403, "Owner access required");
         return reply(200, {
