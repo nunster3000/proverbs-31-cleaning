@@ -24,7 +24,7 @@ test('cancelled guest bookings get the contact action without creating another p
 test('private prelaunch rehearsal requires explicit permission and only claims its work-inbox fixture',async()=>{
  const id='44444444-4444-4444-8444-444444444444',url='/api/notifications?rehearsal='+id,settings={...env,AUTH_ENABLED:'false',NOTIFICATIONS_ENABLED:'false'};
  assert.equal((await run({method:'POST',url,settings})).status,403);
- const fixture={...job,recipient:'khris.nun@proverbs31cleaningcoservices.info',snapshot:{...job.snapshot,booking:{...job.snapshot.booking,id,property:{care_notes:'P31 CONNECTED REHEARSAL test'}}}};
+ const fixture={...job,recipient:'khris.nun@proverbs31cleaningcoservices.info',snapshot:{...job.snapshot,booking:{...job.snapshot.booking,id,care_notes:'P31 CONNECTED REHEARSAL test'}}};
  const result=await run({method:'POST',url,settings:{...settings,NOTIFICATION_SETUP_TEST_ENABLED:'true'},claimedJobs:[fixture]});assert.equal(result.out.sent,1);assert.equal(result.calls[0][0],'service_rehearsal_notification_claim');assert.deepEqual(result.calls[0][1],{p_booking:id});
  let sends=0;const rejected=await run({method:'POST',url,settings:{...settings,NOTIFICATION_SETUP_TEST_ENABLED:'true'},claimedJobs:[job],send:async()=>{sends++;throw Error()}});assert.equal(sends,0);assert.equal(rejected.out.failed,1);
 });

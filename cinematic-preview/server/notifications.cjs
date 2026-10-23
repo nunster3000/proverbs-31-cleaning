@@ -33,7 +33,7 @@ function createNotificationHandler({env:suppliedEnv=process.env,clientFactory=cr
    for(const job of jobs){
     let provider=null,error=null;
     try{
-     if(rehearsal&&(job.recipient!=='khris.nun@proverbs31cleaningcoservices.info'||job.snapshot?.booking?.id!==rehearsal||!String(job.snapshot?.booking?.property?.care_notes||'').startsWith('P31 CONNECTED REHEARSAL ')))throw Error('Rehearsal recipient rejected');
+     if(rehearsal&&(job.recipient!=='khris.nun@proverbs31cleaningcoservices.info'||job.snapshot?.booking?.id!==rehearsal||!String(job.snapshot?.booking?.care_notes||'').startsWith('P31 CONNECTED REHEARSAL ')))throw Error('Rehearsal recipient rejected');
      let guestUrl;
      if(job.snapshot.booking.status!=='cancelled'&&!job.snapshot.account_enabled&&env.GUEST_PORTAL_ENABLED==='true'&&env.GUEST_LINK_SECRET){
       const token=createHmac('sha256',env.GUEST_LINK_SECRET).update(job.id).digest('base64url');
