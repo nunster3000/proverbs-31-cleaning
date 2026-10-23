@@ -1,8 +1,13 @@
 window.P31Live = (() => {
-  let config, client;
+  let config, client, initialization;
   const ownerPage=['/owner-sign-in.html','/owner-preview.html'].includes(window.location?.pathname);
-  async function init() {
-    if (config) return config;
+  function init() {
+    if (!initialization) initialization = initialize().catch(error => {
+      initialization = undefined; config = undefined; throw error;
+    });
+    return initialization;
+  }
+  async function initialize() {
     const response = await fetch("/api/app?route="+(ownerPage?"owner-config":"config"), {
       cache: "no-store",
     });
@@ -10,6 +15,7 @@ window.P31Live = (() => {
       throw new Error("Unable to check the backend connection.");
     config = await response.json();
     const callback = window.P31AuthCallback?.take(location, history);
+    config.callbackReceived = !!(callback?.tokenHash || callback?.accessToken || callback?.refreshToken || new URLSearchParams(window.location?.search || "").has("code"));
     if (config.enabled) {
       if (!window.createSupabaseClient) await load("/assets/backend-sdk.js");
       client = window.createSupabaseClient(config.url, config.key, {
@@ -28,7 +34,7 @@ window.P31Live = (() => {
     if(config.ownerPreview&&client){
       const grant=async()=>{try{const {data:{session}}=await client.auth.getSession();if(!session)return;const r=await fetch('/api/app?route=owner-site-session',{method:'POST',headers:{Authorization:'Bearer '+session.access_token}});if(r.ok)window.dispatchEvent(new Event('p31-owner-preview-ready'));}catch{}};
       await grant();
-      client.auth.onAuthStateChange((event)=>{if(event==='TOKEN_REFRESHED')setTimeout(grant,0);if(event==='SIGNED_OUT')fetch('/api/app?route=owner-site-exit',{method:'POST'}).finally(()=>location.replace('/'));});
+      client.auth.onAuthStateChange((event)=>{if(['INITIAL_SESSION','SIGNED_IN','TOKEN_REFRESHED'].includes(event))setTimeout(grant,0);if(event==='SIGNED_OUT')fetch('/api/app?route=owner-site-exit',{method:'POST'}).finally(()=>location.replace('/'));});
     }
     return config;
   }

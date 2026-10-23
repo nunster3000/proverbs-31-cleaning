@@ -11,11 +11,12 @@ async function portal({enabled=true,session=null,role='customer',verification=tr
   const nodes={'#email-form':form,'#sign-in-email':email,'#sign-in-status':status};
   const redirects=[],calls=[];
   const context={
+    window:{addEventListener(){}},
     document:{querySelector:s=>nodes[s]},
     location:{search:'',hash:'',replace:v=>redirects.push(v)},history:{replaceState(){}},
     URLSearchParams,setTimeout,
     P31Live:{init:async()=>({enabled,authEnabled:enabled,ownerPreview}),api:async route=>{calls.push(route);return {role}},
-      signIn:async()=>verification,
+      signIn:async()=>{if(verification)session={user:{is_anonymous:false}};return verification},
       client:{auth:{getSession:async()=>({data:{session},error:authError?new Error('unavailable'):null}),onAuthStateChange(){}}}}
   };
   await vm.runInNewContext(code,context);
