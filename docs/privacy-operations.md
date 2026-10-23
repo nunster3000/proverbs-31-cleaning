@@ -19,3 +19,9 @@ Gabrielle's business wording and retention choices remain in Admin → Launch pr
 - Activate a scheduled purge only after the approved policy, backup retention and the tested implementation agree. Policy publication alone does not enable or implement deletion.
 
 This procedure is prepared; automated retention/deletion is not enabled. The current customer portal has no self-service account deletion switch, and the owner dashboard's policy editor does not perform data deletion.
+
+## Owner controls added October 23
+
+Admin → Privacy & operations records access/correction/deletion requests against a customer selected from the private directory. Requests are owner-only and audited. The owner must verify control of the account or booking contact before inventory/export. Status changes require the current revision; completion requires recorded outcome/retained-record notes. Downloads contain that customer's booking, agreement and payment data, excluding owner/review notes. They contain sensitive data and must be reviewed before secure delivery; uploaded media bytes need a separate secure transfer.
+
+The inventory is non-destructive. No automatic deletion button or scheduled purge is enabled. Gabrielle must approve retention/holds and the developer must execute a reviewed exact-ID removal where appropriate, including Storage objects. Marking a request complete only records the owner's action; it does not erase data or represent a legal determination. Signed agreements, financial evidence and historical backups are not silently modified.

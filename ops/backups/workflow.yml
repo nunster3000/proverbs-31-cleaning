@@ -1,0 +1,32 @@
+# Install in .github/workflows/backup.yml in a SEPARATE PRIVATE business repository.
+# Copy backup.py to ops/backups/backup.py in that repository.
+name: Encrypted production backup
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 8 * * *' # 08:17 UTC; independent of website launch/countdown
+permissions:
+  contents: read
+concurrency:
+  group: production-backup
+  cancel-in-progress: false
+jobs:
+  backup:
+    if: github.event.repository.private == true && vars.BACKUPS_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install backup tools
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          curl --fail --silent --show-error https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo tee /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc >/dev/null
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt noble-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y restic postgresql-client-17
+      - name: Encrypted database and media backup
+        run: python3 ops/backups/backup.py
+        env:
+          BACKUP_CONFIG: ${{ secrets.BACKUP_CONFIG }}

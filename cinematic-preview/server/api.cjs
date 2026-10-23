@@ -187,6 +187,17 @@ function createHandler({
       if (!user.is_anonymous && !user.email_confirmed_at)
         throw new HttpError(403, "Verify your email before continuing.");
       const owner = !!(await rpc("is_owner", {}));
+      if(route==='privacy-requests'){
+        if(!owner)throw new HttpError(403,'Owner access required');
+        if(!['GET','POST'].includes(req.method))throw new HttpError(405,'Method not allowed');
+        return reply(200,await rpc('api_privacy',{p_action:req.method==='GET'?'list':body.action,p_data:body.data||{}}));
+      }
+      if(route==='operations-health'&&req.method==='GET'){
+        if(!owner)throw new HttpError(403,'Owner access required');
+        const service=clientFactory(env.SUPABASE_URL,env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false}});
+        const result=await service.rpc('service_operations_health');if(result.error)throw result.error;
+        return reply(200,{...result.data,...require('./operations.cjs').assessHealth(result.data,clock())});
+      }
       if(route==='launch-preparation'){
         if(!owner)throw new HttpError(403,'Owner access required');
         if(!['GET','POST'].includes(req.method))throw new HttpError(405,'Method not allowed');

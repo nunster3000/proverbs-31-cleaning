@@ -682,6 +682,8 @@
       P31Social.platforms.forEach(p=>{const group=n('fieldset');group.append(n('legend',p.label));const {visible,url}=socialFields[p.id];group.append(label('Show '+p.label+' icon',visible),label(p.label+' page URL',url));socials.append(group);});
       pageForm.insertBefore(socials,pageForm.lastElementChild);
       root.append(box);
+    } else if (view === "Privacy & operations") {
+      root.append(P31Privacy.render({api:L.api}));
     } else if (view === "Launch preparation") {
       root.append(P31Launch.render({api:L.api,navigate:name=>navigateWorkspace(name)}));
     } else if (view === "Forms & agreements") {
@@ -1576,6 +1578,7 @@
             "Availability",
             "Pricing",
             "Launch preparation",
+            "Privacy & operations",
             "Website content",
             "Forms & agreements",
             "Activity",

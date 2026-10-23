@@ -140,7 +140,7 @@ window.P31LiveCareReady = (async () => {
   const token = await L.captcha(captcha);
   if (!guest.disabled)
     guest.closest("label").querySelector("small").textContent =
-      "Request as a guest. Gabrielle can provide a private booking link for your walkthrough, price approval, and home-access form. Email delivery is not connected yet.";
+      "Request as a guest. Gabrielle can provide a private booking link for your walkthrough, price approval, and home-access form. Your private booking link will be sent by email when guest booking is available.";
   document.querySelector("#account-message").textContent =
     "Your email must be verified before an account booking is submitted.";
   document.querySelector("#signin-preview").onclick = async () => {

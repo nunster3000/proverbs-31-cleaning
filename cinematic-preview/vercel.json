@@ -16,10 +16,6 @@
           "value": "strict-origin-when-cross-origin"
         },
         {
-          "key": "X-Robots-Tag",
-          "value": "noindex, nofollow"
-        },
-        {
           "key": "X-Frame-Options",
           "value": "SAMEORIGIN"
         },
@@ -58,6 +54,15 @@
           "value": "no-referrer"
         }
       ]
+    },
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
     }
   ],
   "installCommand": "npm ci --prefer-offline --no-audit --no-fund",
@@ -65,6 +70,10 @@
     {
       "path": "/api/notifications",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/operations",
+      "schedule": "41 */6 * * *"
     }
   ],
   "proxy": {

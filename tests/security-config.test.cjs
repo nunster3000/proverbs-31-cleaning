@@ -7,7 +7,8 @@ test('deployment prevents foreign framing and unsafe document embedding',()=>{
  assert.equal(headers['x-frame-options'],'SAMEORIGIN');
  for(const directive of ["base-uri 'self'","object-src 'none'","frame-ancestors 'self'","form-action 'self'"])assert.ok(headers['content-security-policy'].includes(directive));
  assert.equal(headers['x-content-type-options'],'nosniff');
- assert.equal(headers['x-robots-tag'],'noindex, nofollow');
+ assert.equal(headers['x-robots-tag'],undefined,'Index policy is launch-aware in the proxy');
+ assert.ok(config.headers.some(r=>r.source==='/api/(.*)'&&r.headers.some(h=>h.key==='X-Robots-Tag'&&h.value==='noindex, nofollow')));
 });
 test('private page shells prohibit storage in caches and suppress referrers',()=>{
  const rule=config.headers.find(r=>r.source.includes('(guest|workspace|account|admin|sign-in|auth-callback)'));
