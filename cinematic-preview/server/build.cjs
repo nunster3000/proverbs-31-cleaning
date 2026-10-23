@@ -5,6 +5,7 @@ fs.mkdirSync('dist/assets', { recursive: true });
 for (const name of fs.readdirSync('.'))
   if (name.endsWith('.html')) fs.copyFileSync(name, path.join('dist', name));
 fs.copyFileSync('workspace.html','dist/owner-preview.html');
+for(const name of fs.readdirSync('dist').filter(n=>n.endsWith('.html'))){const file=path.join('dist',name),source=fs.readFileSync(file,'utf8');fs.writeFileSync(file,source.replace(/<\/html>/i,'<script src="/assets/owner-site-preview.js" defer></script></html>'));}
 const retired = new Set(['admin-store.js', 'admin.js', 'customer-updates.js',
   'customer-owner-bridge.js', 'guest-owner-bridge.js', 'walkthrough.js']);
 fs.cpSync('assets', 'dist/assets', { recursive: true,

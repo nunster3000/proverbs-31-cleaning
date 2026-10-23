@@ -9,7 +9,7 @@ test('all public pages and email authentication release together at the exact Ea
  const esbuild=require('../cinematic-preview/node_modules/esbuild');
  let now=opening-1;const module={exports:{}};
  const source=esbuild.transformSync(fs.readFileSync('cinematic-preview/proxy.ts','utf8'),{loader:'ts',format:'cjs'}).code;
- vm.runInNewContext(source,{module,exports:module.exports,Response,URL,process:{env},require:name=>name==='@vercel/functions'?{next:()=>new Response('released',{headers:{'x-test-released':'yes'}})}:name.includes('launch-clock')?{launchState:e=>launch.launchState(e,now)}:name.includes('search-visibility')?{searchPolicy:(url,e)=>require('../cinematic-preview/server/search-visibility.cjs').searchPolicy(url,e,now)}:{countdownPage}});
+ vm.runInNewContext(source,{module,exports:module.exports,Response,URL,process:{env},require:name=>name==='@vercel/functions'?{next:()=>new Response('released',{headers:{'x-test-released':'yes'}})}:name.includes('owner-site-preview')?require('../cinematic-preview/server/owner-site-preview.cjs'):name.includes('launch-clock')?{launchState:e=>launch.launchState(e,now)}:name.includes('search-visibility')?{searchPolicy:(url,e)=>require('../cinematic-preview/server/search-visibility.cjs').searchPolicy(url,e,now)}:{countdownPage}});
  const pages=['/','/index.html','/services.html','/care.html','/sign-in.html','/workspace.html','/account.html','/admin.html','/contact.html'];
  for(const instant of [opening-1000,opening-1,opening,opening+1,opening+86400000]){
   now=instant;const released=now>=opening,config=await configAt(now);

@@ -43,6 +43,7 @@ function createHandler({
   clock = Date.now,
 } = {}) {
   const suppliedEnv=env;
+  const ownerSite=require('./owner-site-preview.cjs');
   return async (req, res) => {
     const env=effectiveEnv(suppliedEnv,clock());
     const launch=launchState(suppliedEnv,clock());
@@ -64,23 +65,34 @@ function createHandler({
       !!env.SUPABASE_SERVICE_ROLE_KEY;
     try {
       if(route==='launch-status'&&req.method==='GET')return reply(200,launch);
+      if(['owner-site-session','owner-site-status','owner-site-exit','owner-site-renew'].includes(route)){
+        if(['owner-site-session','owner-site-exit','owner-site-renew'].includes(route)&&req.method!=='POST')throw new HttpError(405,'Method not allowed');
+        if(req.method==='POST'&&req.headers.origin!==new URL(suppliedEnv.APP_ORIGIN).origin)throw new HttpError(403,'Origin rejected');
+        if(route==='owner-site-exit'){res.setHeader('Set-Cookie',ownerSite.previewCookie(''));await ownerSite.closeOwnerSession(suppliedEnv,ownerSite.tokenFromCookie(req.headers.cookie||''));return reply(200,{closed:true});}
+        const access=route==='owner-site-session'?String(req.headers.authorization||'').replace(/^Bearer /,''):ownerSite.tokenFromCookie(req.headers.cookie||'');
+        const active=launch.pending&&await ownerSite.verifyOwnerSession(suppliedEnv,access);
+        if(route==='owner-site-status')return reply(200,{active,pending:launch.pending});
+        if(!active){res.setHeader('Set-Cookie',ownerSite.previewCookie(''));throw new HttpError(403,'Active administrator session required');}
+        res.setHeader('Set-Cookie',ownerSite.previewCookie(access));return reply(200,{active:true,idleMinutes:15});
+      }
+      const sitePreview=launch.pending&&await ownerSite.verifyOwnerSession(suppliedEnv,ownerSite.tokenFromCookie(req.headers.cookie||''));
       const ownerBootstrap=route==='owner-config'&&launch.pending&&suppliedEnv.OWNER_PRELAUNCH_ENABLED==='true'&&suppliedEnv.LAUNCH_HOLD!=='true';
       const ownerEntrance=launch.pending&&suppliedEnv.OWNER_PRELAUNCH_ENABLED==='true'&&suppliedEnv.LAUNCH_HOLD!=='true'&&req.headers['x-p31-owner-preview']==='1';
       if(route==='owner-config'&&!ownerBootstrap)throw new HttpError(404,'Temporary owner access is not available.');
-      if(launch.pending&&route!=='config'&&!ownerBootstrap&&!ownerEntrance)throw new HttpError(503,'Website and booking open October 26 at 5:00 AM Eastern.');
+      if(launch.pending&&route!=='config'&&!ownerBootstrap&&!ownerEntrance&&!sitePreview)throw new HttpError(503,'Website and booking open October 26 at 5:00 AM Eastern.');
       if (route === "config" || ownerBootstrap) {
         if (req.method !== "GET")
           throw new HttpError(405, "Method not allowed");
         return reply(200, {
           enabled: configured,
-          authEnabled: configured && (ownerBootstrap || env.AUTH_ENABLED === "true"),
-          ...(ownerBootstrap?{ownerPreview:true}:{}),
+          authEnabled: configured && (ownerBootstrap || sitePreview || env.AUTH_ENABLED === "true"),
+          ...(ownerBootstrap||sitePreview?{ownerPreview:true}:{}),
           siteMode: "launch",
           paymentsEnabled: configured && paymentConfigured(env),
           notificationsEnabled: configured && env.AUTH_ENABLED === "true" && env.NOTIFICATIONS_ENABLED === "true" && !!env.RESEND_API_KEY && !!env.CRON_SECRET,
           guestPortalEnabled: configured && env.AUTH_ENABLED === "true" && env.GUEST_PORTAL_ENABLED === "true",
-          url: configured && (!launch.pending||ownerBootstrap) ? env.SUPABASE_URL : null,
-          key: configured && (!launch.pending||ownerBootstrap) ? env.SUPABASE_ANON_KEY : null,
+          url: configured && (!launch.pending||ownerBootstrap||sitePreview) ? env.SUPABASE_URL : null,
+          key: configured && (!launch.pending||ownerBootstrap||sitePreview) ? env.SUPABASE_ANON_KEY : null,
           turnstileSiteKey: configured ? env.TURNSTILE_SITE_KEY || null : null,
           guestEnabled:
             configured &&
@@ -184,7 +196,7 @@ function createHandler({
           }),
         );
       }
-      if (env.AUTH_ENABLED !== "true") throw new HttpError(503, "Account access and booking submissions are not enabled yet.");
+      if (env.AUTH_ENABLED !== "true" && !sitePreview) throw new HttpError(503, "Account access and booking submissions are not enabled yet.");
       if (!token) throw new HttpError(401, "Sign in required");
       const auth = await db.auth.getUser(token);
       if (auth.error || !auth.data?.user)

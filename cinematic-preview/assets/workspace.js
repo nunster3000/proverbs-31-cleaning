@@ -1554,7 +1554,7 @@
         autoSync?.stop();
         document.querySelector("#workspace-content").replaceChildren();
         document.querySelector("#workspace-detail").replaceChildren();
-        location.replace(signinPath);
+        location.replace(ownerEntrance||L.config?.ownerPreview?"/":signinPath);
       }
     });
     me = await L.api("me");
@@ -1622,8 +1622,11 @@
     tabs.filter(name=>!mobileTabs.includes(name)).forEach(name=>$('#workspace-menu-options').append(btn(name,()=>selectView(name))));
     $('#close-workspace-menu').onclick=()=>$('#workspace-menu').close();
     $("#sign-out").onclick = async () => {
-      await L.client.auth.signOut();
-      location.replace(signinPath);
+      $("#sign-out").disabled = true;
+      try { await fetch("/api/app?route=owner-site-exit",{method:"POST"}); } catch {}
+      try { await L.client.auth.signOut(); } finally {
+        location.replace(ownerEntrance||L.config?.ownerPreview?"/":signinPath);
+      }
     };
     await reload();
     startWorkspaceSync();

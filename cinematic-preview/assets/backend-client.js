@@ -25,6 +25,11 @@ window.P31Live = (() => {
         catch (error) { config.callbackError = error.message; }
       }
     }
+    if(config.ownerPreview&&client){
+      const grant=async()=>{try{const {data:{session}}=await client.auth.getSession();if(!session)return;const r=await fetch('/api/app?route=owner-site-session',{method:'POST',headers:{Authorization:'Bearer '+session.access_token}});if(r.ok)window.dispatchEvent(new Event('p31-owner-preview-ready'));}catch{}};
+      await grant();
+      client.auth.onAuthStateChange((event)=>{if(event==='TOKEN_REFRESHED')setTimeout(grant,0);if(event==='SIGNED_OUT')fetch('/api/app?route=owner-site-exit',{method:'POST'}).finally(()=>location.replace('/'));});
+    }
     return config;
   }
   const scriptLoads=new Map();
