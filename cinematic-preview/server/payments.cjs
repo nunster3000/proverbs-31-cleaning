@@ -14,7 +14,7 @@ async function checkout({env,bookingId,kind,actor=null,guest=null,policy={},clie
  const cancel=origin+(guest?'/guest.html':'/workspace.html')+'?payment=cancelled&booking='+encodeURIComponent(bookingId);
  if(attempt.checkout_url && attempt.session_id)return {url:attempt.checkout_url};
  const stripe=stripeFactory(env.STRIPE_SECRET_KEY);
- const session=await stripe.checkout.sessions.create({mode:'payment',payment_method_types:['card'],client_reference_id:bookingId,customer_email:attempt.email,
+ const session=await stripe.checkout.sessions.create({mode:'payment',client_reference_id:bookingId,customer_email:attempt.email,
   line_items:[{price_data:{currency:'usd',unit_amount:attempt.cents,product_data:{name:'Proverbs 31 · '+(kind==='deposit'?'Booking deposit':'Final cleaning balance')}},quantity:1}],
   metadata:{p31_attempt:attempt.id,p31_booking:bookingId,p31_kind:kind},payment_intent_data:{metadata:{p31_attempt:attempt.id,p31_booking:bookingId,p31_kind:kind}},
   success_url:success,cancel_url:cancel,expires_at:Math.floor(new Date(attempt.created_at).getTime()/1000)+3600},{idempotencyKey:'p31-checkout-'+attempt.id});
