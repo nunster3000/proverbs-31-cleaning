@@ -1,27 +1,25 @@
-# Guest checkout — October 23, 2026
+# Guest checkout — connected October 23, 2026
 
-## Implementation
+## Connected configuration
 
-Guest checkout uses a CAPTCHA-verified anonymous Supabase identity solely to submit the booking and deposit. The customer does not register a password/email-login account. Full booking access is delivered separately through the private email link. An anonymous browser can poll only its own limited deposit receipt; it cannot read account dashboards, walkthroughs, owner notes or another guest's receipt. Stripe redirect-based methods return to the private guest receipt page, not account login. A signed-in account cannot accidentally submit under the guest radio selection.
+- Cloudflare managed Turnstile widget: “Proverbs 31 website authentication”, in the signed-in technical account. Allowed hostnames are proverbs31cleaningcoservices.info and www.proverbs31cleaningcoservices.info; no localhost/preview hostnames or pre-clearance bypass were added. DNS and hosting remain unchanged.
+- Public site key configured in the business Vercel project. The secret is saved in Supabase Authentication → Attack Protection, provider Turnstile. It is not part of app source, public bundles or Vercel client configuration.
+- Supabase runtime confirms email, registration and anonymous sign-in enabled. Missing/invalid CAPTCHA tokens are rejected for both email OTP and anonymous signup.
+- Database guest checkout and Vercel GUEST_CHECKOUT_ENABLED are armed. The application countdown still forces guest booking, login and customer notifications closed before October 26, 2026, 9 AM America/New_York.
+- A private database launch trigger also rejects anonymous booking inserts before that exact instant, including direct Supabase RPC attempts.
 
-The anonymous browser identity cannot change its stored guest email when submitting another booking: that would otherwise redirect earlier booking communications or invalidate their private links. The owner can correct an email through the existing verified administrative process.
+## Customer behavior
 
-CAPTCHA tokens are invalidated on errors, expiration and timeout. Failed script loads can be retried without discarding booking fields. Sign-in waits for security tools and disposes its widget when closed. Supabase must enforce the matching Turnstile secret; frontend validation alone is not security.
+Guests do not create a password/email-login account. CAPTCHA creates a restricted anonymous browser identity for booking submission and deposit payment. Full booking actions use the private link delivered to the booking email. The browser can poll only its own limited deposit receipt; another guest's receipt, customer dashboard and owner notes remain unavailable. Stripe redirect methods return to guest-receipt.html rather than account login.
 
-## Launch protection
+A signed-in account cannot accidentally submit under the guest radio choice. Reusing an anonymous session with a different email is rejected so earlier booking communications cannot be redirected. Gabrielle can correct contact details through the existing verified administrative process.
 
-The website/API countdown remains October 26, 2026 at 9:00 AM America/New_York. A database trigger independently denies anonymous booking inserts before that time, including direct Supabase RPC calls. CAPTCHA-protected anonymous authentication can be enabled beforehand without opening booking inserts. Owner manual bookings continue through verified owner access.
+Security checks handle missing, failed, expired and timed-out tokens. Failed script loads can be retried without discarding the booking fields; tokens reset after failed requests. Narrow phone dialogs use compact CAPTCHA sizing. Email-link sign-in remains passwordless and also passes CAPTCHA to Supabase.
 
-## Live setup still awaiting browser confirmation
+## Verification
 
-Prepared Cloudflare managed widget “Proverbs 31 website authentication” in the signed-in technical account. Hostnames: proverbs31cleaningcoservices.info and www.proverbs31cleaningcoservices.info. No DNS/hosting transfer or paid plan is needed for this configuration. Pre-clearance remains off.
+Real production-domain Turnstile verification was accepted inside the browser by Supabase anonymous signup. The temporary guest identity saw zero customer/booking records and its direct booking attempt was rejected by the database launch clock. No booking, payment, published policy or signature was created. The exact labeled test identity was deleted, and the temporary rehearsal screen was removed afterward. Screenshot: tmp/guest-captcha-live-pass.png (local evidence, not a public website asset).
 
-Do not mark setup complete until:
+The isolated database integration test covers the guest switch, prelaunch rejection, successful post-launch booking, service-only deposit reconciliation, a limited receipt showing the paid deposit, guest email queue recipients, private-link issuance/exchange and rejection of foreign receipt access/email changes. Other guest upload/price/signature/revocation tests remain in the full suite. Test policy publication happens only in the disposable database; Gabrielle's production policy approval remains required before payment.
 
-1. Create widget after the pending browser-policy confirmation. Keep its secret out of chat, Git and browser bundles.
-2. Configure public TURNSTILE_SITE_KEY in the business Vercel project and deploy before enabling project-wide CAPTCHA. This also protects the existing owner/email-link dialog.
-3. Save the matching secret under Supabase Authentication → Attack Protection → CAPTCHA / Turnstile; enable CAPTCHA protection, then anonymous sign-ins. Verify runtime settings and rejection of missing/invalid tokens.
-4. Enable database business_settings.guest_checkout_enabled and Vercel GUEST_CHECKOUT_ENABLED only after protection is connected. Keep countdown/login opening instant unchanged.
-5. Rehearse approved real CAPTCHA verification and guest flow privately. Test failed/expired tokens, account-vs-guest selection, correct receipt polling, sandbox deposit settlement, emailed one-booking access, revoked/expired links and mobile layout. Do not collect real money or expose a public preview bypass.
-
-At this checkpoint code/build tests passed (149 tests, two environment-dependent skips). Added scoped receipt and guest database launch guard to production; anonymous auth and public guest checkout remain disabled until live configuration is completed. Existing private guest portal for owner-arranged bookings is separate.
+No real-money charge was performed. Existing Stripe sandbox browser tests verify embedded card submission; the new guest-specific receipt/redirect and database settlement paths are tested separately. A live post-launch booking is not claimed before the countdown ends.

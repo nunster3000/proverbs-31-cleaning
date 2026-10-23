@@ -79,9 +79,10 @@ window.P31Live = (() => {
         "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit",
       );
     let token = null,problem="Complete the security check first.";
+    const availableWidth=target.clientWidth||((window.innerWidth||1000)-96);
     const widget = window.turnstile.render(target, {
       sitekey: config.turnstileSiteKey,
-      theme:"light",size:"flexible",
+      theme:"light",size:availableWidth<300?"compact":"flexible",
       callback: (value) => {token=value;problem="Complete the security check first.";},
       "expired-callback": () => {token=null;problem="Security check expired. Please complete it again.";},
       "error-callback": () => {token=null;problem="Security check could not complete. Retry the check or reload this page.";},
