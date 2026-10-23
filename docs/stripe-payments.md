@@ -29,21 +29,26 @@ A disposable technical-account booking was used; no real customer agreement was 
 | Customer dashboard | Reflected completed deposit/final payment and no remaining balance |
 | Live countdown | October 26, 2026, 9 AM Eastern; public checkout still HTTP 503 before opening |
 
-The hosted-page rehearsal passed. Embedded payment sessions and the custom payment UI have unit/regression coverage; the real embedded-card rehearsal requires the account's matching sandbox publishable key. Do not substitute the publishable key used internally by Stripe's hosted page.
+The hosted-page and real embedded-card rehearsals both passed. On a 390 × 844 phone viewport, a declined card left the booking unpaid, the $55 deposit updated the booking after webhook verification, and the $90 final payment cleared the reviewed $145 total. Both successful payments stayed on the website and displayed the backend-verified receipt. Duplicate webhook replay left exactly two payment records.
 
-## Remaining activation
+## Live connection — October 23, 2026
 
-1. Enter the matching sandbox publishable key privately and complete the embedded-card rehearsal.
-2. Verify Gabrielle's live Stripe account can accept charges and has the intended payout configuration.
-3. Store the matching live secret/publishable keys only in the business Vercel project's environment settings. Never commit secret keys or send them in chat.
-4. Register the live webhook at `https://www.proverbs31cleaningcoservices.info/api/stripe-webhook`, save its signing secret, set `STRIPE_MODE=live`, and deploy.
-5. Gabrielle reviews/publishes her policy draft and other owner approvals in Admin → Launch preparation. The clarified cancellation draft refunds deposits with at least 72 hours' notice and retains deposits for shorter notice. Rescheduling remains subject to owner review.
-6. Verify the live embedded form can initialize without charging a card. Do not make real-money test transactions.
+- Verified the business live account: Proverbs 31 Cleaning Co Services. Charges and payouts are enabled.
+- Verified that the live publishable and secret keys initialize the same embedded Checkout Session on the business HTTPS domain. No card details were entered and no payment was submitted. The unpaid session was expired immediately afterward; Stripe retains its configuration-test history.
+- Connected the live webhook at https://www.proverbs31cleaningcoservices.info/api/stripe-webhook for completed Checkout Sessions and successful asynchronous payments.
+- Stored the matching live keys and webhook secret as server environment settings in the business Vercel project. Never commit secret keys or send them in chat.
+- Production uses STRIPE_MODE=live and PAYMENTS_ENABLED=true. Public booking and payment APIs remain gated by the existing October 26, 2026, 9 AM Eastern countdown.
+- Automatic customer emails and guest access remain disabled independently.
+- Disposable sandbox booking/customer rows, payment records, audit records, and queued emails were removed after verification. Stripe keeps its sandbox test-transaction history; no real money moved.
 
-Required environment values: `PAYMENTS_ENABLED`, `STRIPE_MODE`, `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`. Countdown and email switches are separate and must not be changed as part of payment activation.
+## Owner approval still required
 
-## Current deployment state
+Gabrielle must review and publish her policies and other owner approvals in Admin → Launch preparation. The payment endpoint requires acknowledgment of the business-published policy before the first payment. No policy or agreement was published or signed for this technical test.
 
-The embedded UI is prepared behind the payment activation switch. `PAYMENTS_ENABLED=false` until the matching account keys are entered and the embedded sandbox rehearsal passes. Both temporary rehearsal bookings, their customer row, payment entries, and queued emails were removed after the hosted test. The Stripe sandbox retains its own test transaction history; no real money moved.
+The clarified cancellation draft refunds deposits with at least 72 hours' notice and retains deposits for shorter notice. Rescheduling remains subject to owner review.
 
-The final local regression run passed 141 tests, with two environment-dependent tests skipped. The production build passed.
+## Verification and operations
+
+The local regression suite passed 141 tests, with two environment-dependent tests skipped. The production build passed. The sandbox secret, publishable, and webhook keys remain stored privately for future testing; future sandbox rehearsals should use an isolated preview environment after public launch.
+
+Required environment values: PAYMENTS_ENABLED, STRIPE_MODE, STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY, STRIPE_WEBHOOK_SECRET. Countdown and email switches are separate and must not be changed as part of payment activation.
