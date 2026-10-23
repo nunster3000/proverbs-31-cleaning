@@ -1028,8 +1028,8 @@
           const amount=due==='deposit'?b.quote_snapshot.deposit_cents-b.deposit_paid_cents:figures.balance;
           const pay=btn((due==='deposit'?'Pay booking deposit · ':'Pay final balance · ')+money(amount),async()=>{
             pay.disabled=true;
-            try{await P31Payments.start({booking:b,loadPolicies:()=>L.api('public-policies'),request:policy=>L.api('checkout',{method:'POST',data:{id:b.id,kind:due,policy}})});pay.disabled=false;}catch(e){msg(e.message);pay.disabled=false;}
-          },'primary');payments.append(pay,n('p','Your payment is handled securely by Stripe. Your booking updates after payment verification.','fine'));
+            try{const paid=await P31Payments.start({booking:b,loadPolicies:()=>L.api('public-policies'),loadBooking:()=>L.api('booking',{query:{id:b.id}}),request:policy=>L.api('checkout',{method:'POST',data:{id:b.id,kind:due,policy}})});if(paid){await reload();detail(records.find(x=>x.id===b.id)||await L.api('booking',{query:{id:b.id}}));}pay.disabled=false;}catch(e){msg(e.message);pay.disabled=false;}
+          },'primary');payments.append(pay,n('p','Pay securely here, without leaving your booking. Your payment is recorded after verification.','fine'));
         }else payments.append(n('p','No payment is due at this step. Your final balance will appear after it is issued.'));
       }else payments.append(n('p','Contact Gabrielle to arrange payment or ask about a payment already sent.'));
 

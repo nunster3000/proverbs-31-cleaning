@@ -29,7 +29,7 @@
         },
         {
           "key": "Permissions-Policy",
-          "value": "geolocation=(), microphone=(), payment=(), usb=()"
+          "value": "geolocation=(), microphone=(), payment=(self \"https://js.stripe.com\" \"https://hooks.stripe.com\"), usb=()"
         }
       ]
     },

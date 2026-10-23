@@ -1,6 +1,6 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),Stripe=require('../cinematic-preview/node_modules/stripe');
 const {checkout,createWebhookHandler,paymentConfigured}=require('../cinematic-preview/server/payments.cjs');
-const env={PAYMENTS_ENABLED:'true',STRIPE_MODE:'test',STRIPE_SECRET_KEY:'sk_test_fixture',STRIPE_WEBHOOK_SECRET:'whsec_fixture',SUPABASE_URL:'https://fixture.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'fixture',APP_ORIGIN:'https://www.proverbs31cleaningcoservices.info'};
+const env={PAYMENTS_ENABLED:'true',STRIPE_MODE:'test',STRIPE_SECRET_KEY:'sk_test_fixture',STRIPE_PUBLISHABLE_KEY:'pk_test_fixture',STRIPE_WEBHOOK_SECRET:'whsec_fixture',SUPABASE_URL:'https://fixture.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'fixture',APP_ORIGIN:'https://www.proverbs31cleaningcoservices.info'};
 const id='11111111-1111-4111-8111-111111111111';
 test('payment configuration rejects disabled and mixed-mode keys',()=>{assert.ok(paymentConfigured(env));assert.equal(paymentConfigured({...env,PAYMENTS_ENABLED:'false'}),false);assert.equal(paymentConfigured({...env,STRIPE_MODE:'live'}),false);});
 test('sandbox payments cannot open to production customers when the countdown ends',()=>{
@@ -12,9 +12,9 @@ test('sandbox payments cannot open to production customers when the countdown en
 test('checkout trusts locked server amount and reuses a stable Stripe idempotency key',async()=>{
  let parameters,key;const calls=[];
  const clientFactory=()=>({rpc:async(name,args)=>{calls.push([name,args]);return {data:name==='api_payment_prepare'?{id,cents:5500,email:'fixture@example.com',created_at:new Date().toISOString()}: {},error:null};}});
- const stripeFactory=()=>({checkout:{sessions:{create:async(p,o)=>{parameters=p;key=o.idempotencyKey;return {id:'cs_test_fixture',url:'https://checkout.stripe.com/c/pay/fixture',expires_at:Math.floor(Date.now()/1000)+3600};}}}});
+ const stripeFactory=()=>({checkout:{sessions:{create:async(p,o)=>{parameters=p;key=o.idempotencyKey;return {id:'cs_test_fixture',ui_mode:'elements',status:'open',client_secret:'cs_test_fixture_secret_fixture',expires_at:Math.floor(Date.now()/1000)+3600};}}}});
  const result=await checkout({env,bookingId:id,kind:'deposit',actor:id,clientFactory,stripeFactory});
- assert.equal(parameters.line_items[0].price_data.unit_amount,5500);assert.equal(parameters.metadata.p31_attempt,id);assert.equal(key,'p31-checkout-'+id);assert.equal(calls[1][0],'api_payment_attach');assert.match(result.url,/^https:\/\/checkout.stripe.com\//);
+ assert.equal(parameters.line_items[0].price_data.unit_amount,5500);assert.equal(parameters.metadata.p31_attempt,id);assert.equal(key,'p31-elements-'+id);assert.equal(calls[1][0],'api_payment_attach');assert.equal(parameters.ui_mode,'elements');assert.equal(parameters.success_url,undefined);assert.equal(result.clientSecret,'cs_test_fixture_secret_fixture');assert.equal(result.amountCents,5500);assert.equal(result.publishableKey,'pk_test_fixture');assert.equal(result.url,undefined);
 });
 async function event(payload,signature=true){
  const bytes=Buffer.from(JSON.stringify(payload));let writes=0;const stripe=new Stripe('sk_test_fixture');

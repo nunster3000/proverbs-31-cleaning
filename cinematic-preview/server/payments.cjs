@@ -2,7 +2,7 @@ const Stripe=require('stripe');
 const {createClient}=require('@supabase/supabase-js');
 const {launchState}=require('./launch-clock.cjs');
 const fail=(status,message)=>{const e=Error(message);e.status=status;throw e;};
-function paymentConfigured(env,now=Date.now()){return env.PAYMENTS_ENABLED==='true' && ['test','live'].includes(env.STRIPE_MODE) && new RegExp('^(sk|rk)_'+env.STRIPE_MODE+'_').test(env.STRIPE_SECRET_KEY||'') && !!env.STRIPE_WEBHOOK_SECRET && !(env.VERCEL_ENV==='production' && env.STRIPE_MODE==='test' && !launchState(env,now).pending);}
+function paymentConfigured(env,now=Date.now()){return env.PAYMENTS_ENABLED==='true' && ['test','live'].includes(env.STRIPE_MODE) && new RegExp('^(sk|rk)_'+env.STRIPE_MODE+'_').test(env.STRIPE_SECRET_KEY||'') && new RegExp('^pk_'+env.STRIPE_MODE+'_').test(env.STRIPE_PUBLISHABLE_KEY||'') && !!env.STRIPE_WEBHOOK_SECRET && !(env.VERCEL_ENV==='production' && env.STRIPE_MODE==='test' && !launchState(env,now).pending);}
 async function checkout({env,bookingId,kind,actor=null,guest=null,policy={},clientFactory=createClient,stripeFactory=key=>new Stripe(key,{maxNetworkRetries:2,timeout:20000})}){
  if(!paymentConfigured(env))fail(503,'Online payments are not available yet.');
  if(!/^[0-9a-f-]{36}$/i.test(bookingId||'') || !['deposit','final'].includes(kind))fail(400,'Choose a booking and payment type.');
@@ -10,17 +10,20 @@ async function checkout({env,bookingId,kind,actor=null,guest=null,policy={},clie
  const rpc=async(name,args)=>{const r=await db.rpc(name,args);if(r.error)fail(r.error.code==='42501'?403:409,r.error.message);return r.data;};
  const attempt=await rpc('api_payment_prepare',{p_id:bookingId,p_kind:kind,p_actor:actor,p_guest:guest,p_policy:policy});
  const origin=new URL(env.APP_ORIGIN).origin;
- const success=origin+(guest?'/guest.html':'/workspace.html')+'?payment=returned&booking='+encodeURIComponent(bookingId);
- const cancel=origin+(guest?'/guest.html':'/workspace.html')+'?payment=cancelled&booking='+encodeURIComponent(bookingId);
- if(attempt.checkout_url && attempt.session_id)return {url:attempt.checkout_url};
+ const returnUrl=origin+(guest?'/guest.html':'/workspace.html')+'?payment=returned&booking='+encodeURIComponent(bookingId);
  const stripe=stripeFactory(env.STRIPE_SECRET_KEY);
- const session=await stripe.checkout.sessions.create({mode:'payment',client_reference_id:bookingId,customer_email:attempt.email,
+ const result=session=>{
+  if(session.ui_mode!=='elements' || !session.client_secret || session.status==='complete')fail(409,'This payment has changed or is processing. Refresh your booking before trying again.');
+  return {clientSecret:session.client_secret,publishableKey:env.STRIPE_PUBLISHABLE_KEY,amountCents:attempt.cents,kind};
+ };
+ if(attempt.session_id)return result(await stripe.checkout.sessions.retrieve(attempt.session_id));
+ const session=await stripe.checkout.sessions.create({mode:'payment',ui_mode:'elements',client_reference_id:bookingId,customer_email:attempt.email,
   line_items:[{price_data:{currency:'usd',unit_amount:attempt.cents,product_data:{name:'Proverbs 31 · '+(kind==='deposit'?'Booking deposit':'Final cleaning balance')}},quantity:1}],
   metadata:{p31_attempt:attempt.id,p31_booking:bookingId,p31_kind:kind},payment_intent_data:{metadata:{p31_attempt:attempt.id,p31_booking:bookingId,p31_kind:kind}},
-  success_url:success,cancel_url:cancel,expires_at:Math.floor(new Date(attempt.created_at).getTime()/1000)+3600},{idempotencyKey:'p31-checkout-'+attempt.id});
- if(!session.url || new URL(session.url).hostname!=='checkout.stripe.com')fail(502,'Payment page is unavailable. Try again shortly.');
- await rpc('api_payment_attach',{p_attempt:attempt.id,p_session:session.id,p_url:session.url,p_expires:new Date(session.expires_at*1000).toISOString()});
- return {url:session.url};
+  return_url:returnUrl,expires_at:Math.floor(new Date(attempt.created_at).getTime()/1000)+3600},{idempotencyKey:'p31-elements-'+attempt.id});
+ if(!session.client_secret)fail(502,'Payment form is unavailable. Try again shortly.');
+ await rpc('api_payment_attach',{p_attempt:attempt.id,p_session:session.id,p_url:null,p_expires:new Date(session.expires_at*1000).toISOString()});
+ return result(session);
 }
 function createWebhookHandler({env=process.env,clientFactory=createClient,stripeFactory=key=>new Stripe(key)}={}){
  return async(req,res)=>{
