@@ -865,3 +865,11 @@ input[type="file"] {
 #workspace-detail dl { display:grid; grid-template-columns:minmax(100px,1fr) minmax(0,2fr); gap:10px 18px; }
 #workspace-detail dd { margin:0; overflow-wrap:anywhere; }
 @media(max-width:480px){#workspace-detail dl{grid-template-columns:1fr;gap:5px}#workspace-detail dd{margin-bottom:12px}}
+/* Account controls use the same quiet, touch-friendly review cards. */
+.account-closure { margin-top:24px; border-top:2px solid #b58c51; padding-top:24px; }
+.account-closure fieldset { display:grid; gap:12px; border:1px solid #d8c5a7; padding:16px; }
+.account-closure label { display:flex; align-items:flex-start; gap:12px; line-height:1.5; }
+.account-closure input[type="radio"],.account-closure input[type="checkbox"] { flex:0 0 20px; width:20px; height:20px; margin-top:2px; accent-color:#9c783d; }
+.account-closure button { min-height:48px; white-space:normal; margin:8px 8px 8px 0; }
+.account-closure article { overflow-wrap:anywhere; }
+@media(max-width:480px){.account-closure button { width:100%; margin:8px 0; }.account-closure fieldset { min-width:0; }.account-closure input[type="text"] { width:100%; min-width:0; }}

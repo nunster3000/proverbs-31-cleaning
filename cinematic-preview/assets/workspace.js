@@ -156,9 +156,11 @@
           if(!workspaceDirty && !dialog.open)notice.append(btn('View latest dashboard',()=>render()));
         }else $('#workspace-message').textContent='Booking updated automatically.';
       },
-      onState:(state,error)=>{
+      onState:async(state,error)=>{
         line.textContent=state==='connected'?'Updates automatically':'Updates paused · reconnecting…';
-        if(error?.status===401 || error?.status===403){autoSync?.stop();$('#workspace-dialog').close();clearPreviews();records=[];$('#workspace-content').replaceChildren();$('#workspace-detail').replaceChildren();location.replace(signinPath);}
+        if(error?.status===401 || error?.status===403){
+          if(me.role==='customer'){try{const r=await fetch('/api/app?route=account-closure-status',{cache:'no-store'});if(r.ok&&['purging','completed'].includes((await r.json()).state)){autoSync?.stop();await L.client.auth.signOut({scope:'local'});location.replace('account-deleted.html');return;}}catch{}}
+          autoSync?.stop();$('#workspace-dialog').close();clearPreviews();records=[];$('#workspace-content').replaceChildren();$('#workspace-detail').replaceChildren();location.replace(signinPath);}
       }
     });
     document.addEventListener('visibilitychange',()=>document.visibilityState==='visible'?autoSync.wake():autoSync.pause());
@@ -178,6 +180,10 @@
     for(const [kind,title] of Object.entries(attentionLabels)){
       const count=Number(attention.counts[kind] || 0),b=btn('',()=>showAttention(kind),'attention-pill');
       b.append(n('span',title),n('strong',String(count)));b.setAttribute('aria-label',title+': '+count);tools.append(b);
+    }
+    if(me.role==='owner'){
+      const count=(state.accountClosures||[]).filter(x=>!x.read).length+(state.accountRefunds||[]).length;
+      const b=btn('Account & refund notices · '+count,()=>navigateWorkspace('Privacy & operations'),'attention-pill');b.setAttribute('aria-label','Account and refund notices: '+count);tools.append(b);
     }
     root.append(tools);
     for(const node of document.querySelectorAll('#workspace-nav button,#mobile-workspace-nav button')){
@@ -810,7 +816,7 @@
             });
           }, "Profile saved to your account."),
       );
-      root.append(c);
+      root.append(c,window.P31AccountClosure.render({api:L.api,email:me.user.email,signIn:L.signIn}));
     }
   }
   function action(b, name, data, request_id) {

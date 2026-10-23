@@ -50,6 +50,7 @@ function createHandler({
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "no-referrer");
     const reply = (status, body) => {
+      if(reply.cookie)res.setHeader("Set-Cookie",reply.cookie);
       res.statusCode = status;
       res.setHeader("Content-Type", "application/json; charset=utf-8");
       res.end(JSON.stringify(body));
@@ -121,6 +122,11 @@ function createHandler({
       if (Buffer.byteLength(JSON.stringify(body)) > (route === "site-photo" ? 3000000 : 65536))
         throw new HttpError(413, "Request too large");
       if(await handleGuest({req,res,route,body,url,env,clientFactory,reply,fetchFile,signatureMatches}))return;
+      if(route==='account-closure-status'&&req.method==='GET'){
+        if(env.ACCOUNT_DELETION_ENABLED!=='true')return reply(404,{error:'Unavailable'});
+        const receipt=await require('./account-closure.cjs').closureReceipt({req,env,clientFactory});
+        return reply(receipt?200:404,receipt||{error:'No account deletion receipt'});
+      }
       const token = String(req.headers.authorization || "").match(
         /^Bearer (.+)$/,
       )?.[1];
@@ -187,6 +193,10 @@ function createHandler({
       if (!user.is_anonymous && !user.email_confirmed_at)
         throw new HttpError(403, "Verify your email before continuing.");
       const owner = !!(await rpc("is_owner", {}));
+      if(['account-closure','account-closure-notices','account-refunds'].includes(route)){
+        if(env.ACCOUNT_DELETION_ENABLED!=='true')throw new HttpError(503,'Account deletion is being prepared. Please contact the business for assistance.');
+        if(await require('./account-closure.cjs').handleClosure({route,req,body,user,owner,token,db,env,reply,clock}))return;
+      }
       if(route==='privacy-requests'){
         if(!owner)throw new HttpError(403,'Owner access required');
         if(!['GET','POST'].includes(req.method))throw new HttpError(405,'Method not allowed');
@@ -348,7 +358,7 @@ function createHandler({
         if (search.length > 120) throw new HttpError(400, "Search must be 120 characters or fewer");
         const kind = url.searchParams.get("kind") || "all";
         if (!["all", "account", "guest"].includes(kind)) throw new HttpError(400, "Invalid customer filter");
-        let query = db.from("customers").select("*", {count:"exact"});
+        let query = db.from("customers").select("*", {count:"exact"}).is("deleted_at",null);
         // Remove PostgREST filter operators/delimiters; search is a literal substring.
         const term = search.replace(/[,()%_\\"*]/g," ").replace(/\s+/g," ").trim();
         if (search && !term) return reply(200,{items:[],total:0,page,pageSize:25});
@@ -444,6 +454,8 @@ function createHandler({
           ),
           notes: await read(db.from("owner_notes").select("*")),
           attention: await rpc("api_owner_attention", {}),
+          accountClosures: await rpc("api_account_closure_notices", {}),
+          accountRefunds: await rpc("api_account_refunds", {}),
         });
       }
       if(route==='customer-attention' && req.method==='GET')return reply(200,await rpc('api_customer_attention',{}));

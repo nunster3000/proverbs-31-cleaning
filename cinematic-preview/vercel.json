@@ -80,6 +80,23 @@
           "value": "noindex, nofollow"
         }
       ]
+    },
+    {
+      "source": "/account-deleted.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
     }
   ],
   "installCommand": "npm ci --prefer-offline --no-audit --no-fund",
@@ -91,9 +108,18 @@
     {
       "path": "/api/operations",
       "schedule": "41 */6 * * *"
+    },
+    {
+      "path": "/api/account-maintenance",
+      "schedule": "*/5 * * * *"
     }
   ],
   "proxy": {
     "entrypoint": "proxy.ts"
+  },
+  "functions": {
+    "api/account-maintenance.js": {
+      "maxDuration": 300
+    }
   }
 }

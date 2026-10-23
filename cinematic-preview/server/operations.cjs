@@ -5,6 +5,8 @@ function assessHealth(data,now=Date.now()){
  const b=data.backup||{},last=Date.parse(b.succeeded_at||''),failed=Date.parse(b.failed_at||''),alerts=[];
  if(!Number.isFinite(last)||now-last>36*3600000)alerts.push('No successful backup recorded within 36 hours.');
  if(Number.isFinite(failed)&&(!Number.isFinite(last)||failed>last))alerts.push('The latest backup attempt failed.');
+ if(Number(data.account_deletion_failures)>0)alerts.push('An account deletion needs technical or payment reconciliation.');
+ if(Number(data.account_deletion_notification_failures)>0)alerts.push('An account deletion notice has not reached the owner.');
  if(Number(data.email_failures)>0)alerts.push('Customer email deliveries need review in the admin dashboard.');
  return {alerts,shouldNotify:alerts.length>0&&(!b.alerted_at||now-Date.parse(b.alerted_at)>24*3600000)};
 }
