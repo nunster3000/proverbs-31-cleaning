@@ -1,4 +1,10 @@
 (async () => {
+  if(location.pathname==='/owner-sign-in.html'&&new URLSearchParams(location.search).get('guest-security-test')==='1'){
+    const config=await P31Live.init();if(!config.ownerPreview)return;
+    const form=document.querySelector('#email-form');form.replaceChildren();const status=document.querySelector('#sign-in-status'),security=document.createElement('div'),button=document.createElement('button');button.type='button';button.textContent='Verify guest security';form.append(security,button);status.textContent='Private test: no booking, payment, or account registration. Complete the security check.';
+    const getToken=await P31Live.captcha(security);button.onclick=async()=>{button.disabled=true;try{const client=P31Live.client;const signed=await client.auth.signInAnonymously({options:{captchaToken:getToken(),data:{p31_guest_captcha_rehearsal:true}}});if(signed.error)throw signed.error;if(!signed.data.user.is_anonymous)throw Error('Expected guest identity');const customers=await client.from('customers').select('id'),bookings=await client.from('bookings').select('id');if(customers.error||bookings.error||customers.data.length||bookings.data.length)throw Error('Isolation check failed');const blocked=await client.rpc('api_create_booking',{p_request:crypto.randomUUID(),p_data:{name:'PRIVATE GUEST SECURITY TEST',email:'khris.nun@proverbs31cleaningcoservices.info',address:'TEST ONLY - NOT A SERVICE ADDRESS',service:'standard',space_id:3,date:'2026-11-25',arrival:'morning'}});if(!blocked.error||!blocked.error.message.includes('October 26'))throw Error('Expected launch protection');status.textContent='PASS: Turnstile verified; guest identity created; other customer records and bookings: 0; early booking blocked by the launch clock. Test identity: '+signed.data.user.id;await client.auth.signOut();getToken.dispose?.();button.hidden=true;}catch(e){status.textContent=e.message;getToken.reset?.();button.disabled=false;}};return;
+  }
+
   const form = document.querySelector('#email-form');
   const button = form.querySelector('button');
   const email = document.querySelector('#sign-in-email');
