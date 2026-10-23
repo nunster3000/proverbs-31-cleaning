@@ -70,3 +70,9 @@ test('a refund discovered after a lost response is reused even outside the idemp
  const stripeFactory=()=>({paymentIntents:{retrieve:async()=>({id:'pi_fixture',status:'succeeded',metadata:{p31_booking:'b'},latest_charge:{amount:5500,amount_refunded:5500,disputed:false}})},refunds:{list:async()=>({has_more:false,data:[{id:'re_found',payment_intent:'pi_fixture',amount:5500,status:'succeeded',metadata:{p31_refund:'r'}}]}),create:async()=>{created++;}}});
  assert.equal((await processClosure({db,env:{STRIPE_SECRET_KEY:'sk_test_fixture'},id:'job',stripeFactory})).completed,true);assert.equal(created,0);assert.equal(recorded,true);assert.equal(removed,true);
 });
+test('scheduled deletion does not interrupt a kept visit or an active final-payment checkout',async()=>{
+ for(const upcoming of [[],[{id:'kept'}]]){
+  let processorUsed=false,removed=false;const db={rpc:async(_,{p_action})=>({data:p_action==='claim'?{mode:'keep',user_id:'u',state:'waiting',preview:{upcoming,holds:[]},checkouts:[{id:'a',session_id:'cs_test',expires_at:new Date(Date.now()+3600000).toISOString()}]}:{}}),auth:{admin:{deleteUser:async()=>{removed=true;return {};}}}};
+  const r=await processClosure({db,env:{STRIPE_SECRET_KEY:'sk_test_fixture'},id:'j',stripeFactory:()=>{processorUsed=true;throw Error();}});assert.equal(r.waiting,true);assert.equal(processorUsed,false);assert.equal(removed,false);
+ }
+});

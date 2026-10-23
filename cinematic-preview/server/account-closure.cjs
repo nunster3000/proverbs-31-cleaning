@@ -36,11 +36,13 @@ async function processClosure({db,env,id,stripeFactory=key=>new Stripe(key,{maxN
  try{
   if(job.state==='completed'){const files=await rpc('sweep');for(const f of files){const r=await db.storage.from(f.bucket).remove([f.path]);if(r.error)throw Error('storage_removal');}return {swept:true};}
 
+  if(job.preview.upcoming.length&&job.mode==='keep')return {waiting:true};
   // Processor reconciliation precedes any deletion. This app does not save reusable cards.
   // Unexpected reusable profiles or subscriptions require technical reconciliation, never deletion by email.
   let stripe;
   const payments=job.payments||[],refunds=job.refunds||[];
   for(const attempt of job.checkouts||[]){
+   if(Date.parse(attempt.expires_at)>Date.now())return {waiting:true};
    if(!env.STRIPE_SECRET_KEY||!attempt.session_id)throw Error('checkout_reconciliation');
    stripe ||= stripeFactory(env.STRIPE_SECRET_KEY);
    let session=await stripe.checkout.sessions.retrieve(attempt.session_id);
@@ -49,7 +51,6 @@ async function processClosure({db,env,id,stripeFactory=key=>new Stripe(key,{maxN
    if(session.status!=='expired'||session.payment_status!=='unpaid'||session.payment_intent)throw Error('payment_processing');
    await rpc('checkout_expired',{attempt:attempt.id});
   }
-  if(job.preview.upcoming.length&&job.mode==='keep')return {waiting:true};
 
   for(const payment of payments){
    if(payment.provider!=='stripe')continue;
