@@ -5,8 +5,8 @@ const id='11111111-1111-4111-8111-111111111111';
 test('payment configuration rejects disabled and mixed-mode keys',()=>{assert.ok(paymentConfigured(env));assert.equal(paymentConfigured({...env,PAYMENTS_ENABLED:'false'}),false);assert.equal(paymentConfigured({...env,STRIPE_MODE:'live'}),false);});
 test('sandbox payments cannot open to production customers when the countdown ends',()=>{
  const prod={...env,VERCEL_ENV:'production',LAUNCH_COUNTDOWN_ENABLED:'true'};
- assert.equal(paymentConfigured(prod,Date.parse('2026-10-26T12:59:59Z')),true);
- assert.equal(paymentConfigured(prod,Date.parse('2026-10-26T13:00:00Z')),false);
+ assert.equal(paymentConfigured(prod,Date.parse('2026-10-26T08:59:59Z')),true);
+ assert.equal(paymentConfigured(prod,Date.parse('2026-10-26T09:00:00Z')),false);
  assert.equal(paymentConfigured({...prod,LAUNCH_COUNTDOWN_ENABLED:'false'}),false);
 });
 test('checkout trusts locked server amount and reuses a stable Stripe idempotency key',async()=>{

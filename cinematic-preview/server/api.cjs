@@ -67,7 +67,7 @@ function createHandler({
       const ownerBootstrap=route==='owner-config'&&launch.pending&&suppliedEnv.OWNER_PRELAUNCH_ENABLED==='true'&&suppliedEnv.LAUNCH_HOLD!=='true';
       const ownerEntrance=launch.pending&&suppliedEnv.OWNER_PRELAUNCH_ENABLED==='true'&&suppliedEnv.LAUNCH_HOLD!=='true'&&req.headers['x-p31-owner-preview']==='1';
       if(route==='owner-config'&&!ownerBootstrap)throw new HttpError(404,'Temporary owner access is not available.');
-      if(launch.pending&&route!=='config'&&!ownerBootstrap&&!ownerEntrance)throw new HttpError(503,'Website and booking open October 26 at 9:00 AM Eastern.');
+      if(launch.pending&&route!=='config'&&!ownerBootstrap&&!ownerEntrance)throw new HttpError(503,'Website and booking open October 26 at 5:00 AM Eastern.');
       if (route === "config" || ownerBootstrap) {
         if (req.method !== "GET")
           throw new HttpError(405, "Method not allowed");

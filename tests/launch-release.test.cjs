@@ -16,7 +16,7 @@ test('all public pages and email authentication release together at the exact Ea
   assert.equal(config.authEnabled,released);assert.equal(config.key,released?'test-public':null);
   for(const page of pages){const r=module.exports.default({url:'https://example.com'+page,method:'GET'});assert.equal(r.headers.get('x-test-released')==='yes',released,page+' at '+new Date(now).toISOString());if(!released){assert.match(await r.text(),/Website and booking available:/);assert.match(r.headers.get('cache-control'),/no-store/);}}
  }
- assert.equal(new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'numeric',minute:'2-digit'}).format(opening),'9:00 AM');
+ assert.equal(new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'numeric',minute:'2-digit'}).format(opening),'5:00 AM');
 });
 test('released public login supports existing users and new registration without a password or code',async()=>{
  const config=await configAt(opening);let dialog,otp;

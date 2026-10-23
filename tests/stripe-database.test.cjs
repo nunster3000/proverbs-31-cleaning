@@ -11,6 +11,7 @@ test('Stripe reservations, reconciliation, privacy and duplicate events',{timeou
  create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
  create table storage.objects(id uuid primary key default gen_random_uuid(),bucket_id text,name text,metadata jsonb);alter table storage.objects enable row level security;grant select,insert,delete on storage.objects to authenticated;`);
  for(const f of fs.readdirSync('cinematic-preview/supabase/migrations').filter(x=>x.endsWith('.sql')).sort())await db.exec(fs.readFileSync('cinematic-preview/supabase/migrations/'+f,'utf8'));
+ assert.equal(new Date((await db.query('select opens_at from private.guest_checkout_launch where id=true')).rows[0].opens_at).toISOString(),new Date(require('../cinematic-preview/server/launch-clock.cjs').OPENS_AT).toISOString(),'Guest database and website must open together');
  const draft=(await db.query('select draft,published_revision from private.launch_preparation where id=true')).rows[0];
  assert.match(draft.draft.cancellation_notice,/at least 72 hours/);
  assert.match(draft.draft.deposit_handling,/refunded if you cancel at least 72 hours/);

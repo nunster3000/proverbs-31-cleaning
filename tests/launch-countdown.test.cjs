@@ -4,8 +4,8 @@ const{countdownPage}=require('../cinematic-preview/server/countdown-page.cjs');
 const{createHandler}=require('../cinematic-preview/server/api.cjs');
 const open=Date.parse(OPENS_AT),env={LAUNCH_COUNTDOWN_ENABLED:'true',LAUNCH_LOGIN_ENABLED:'true',AUTH_ENABLED:'false',BACKEND_ENABLED:'true',SUPABASE_URL:'https://example.supabase.co',SUPABASE_ANON_KEY:'public',SUPABASE_SERVICE_ROLE_KEY:'private'};
 async function call(h,route){let status,body;await h({url:'/api/app?route='+route,method:'GET',headers:{}},{setHeader(){},set statusCode(v){status=v},end(v){body=JSON.parse(v)}});return{status,body};}
-test('launch is exactly 9 AM Atlanta Eastern, blocks before opening and releases at zero without redeployment',()=>{
- assert.equal(new Date(open).toISOString(),'2026-10-26T13:00:00.000Z');
+test('launch is exactly 5 AM Atlanta Eastern, blocks before opening and releases at zero without redeployment',()=>{
+ assert.equal(new Date(open).toISOString(),'2026-10-26T09:00:00.000Z');
  assert.equal(launchState(env,open-1).pending,true);assert.equal(launchState(env,open-1).remainingSeconds,1);
  assert.equal(launchState(env,open).pending,false);assert.equal(launchState(env,open+10000).remainingSeconds,0);
  assert.equal(effectiveEnv(env,open-1).AUTH_ENABLED,'false');assert.equal(effectiveEnv(env,open).AUTH_ENABLED,'true');
