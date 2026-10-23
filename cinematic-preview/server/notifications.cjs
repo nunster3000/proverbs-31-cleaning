@@ -5,7 +5,7 @@ const {effectiveEnv}=require('./launch-clock.cjs');
 const same=(a,b)=>typeof a==='string'&&typeof b==='string'&&Buffer.byteLength(a)===Buffer.byteLength(b)&&a.length>0&&timingSafeEqual(Buffer.from(a),Buffer.from(b));
 function createNotificationHandler({env:suppliedEnv=process.env,clientFactory=createClient,send=fetch,clock=()=>Date.now()}={}){
  return async(req,res)=>{
-  const env=effectiveEnv(suppliedEnv,clock());
+  let env=effectiveEnv(suppliedEnv,clock());
   const reply=(status,value)=>{res.statusCode=status;res.setHeader('Cache-Control','no-store');res.setHeader('Content-Type','application/json');res.end(JSON.stringify(value));};
   if(!['GET','POST'].includes(req.method))return reply(405,{error:'Method not allowed'});
   if(!same(req.headers.authorization,'Bearer '+(env.CRON_SECRET||'')) || !env.CRON_SECRET)return reply(401,{error:'Unauthorized'});
@@ -18,15 +18,22 @@ function createNotificationHandler({env:suppliedEnv=process.env,clientFactory=cr
     const data=await r.json();if(!data.id)throw Error('Delivery unavailable');return reply(200,{accepted:true,provider_id:data.id});
    }catch{return reply(503,{error:'Setup email was not acknowledged'});}
   }
+  const rehearsal=new URL(req.url||'/api/notifications','https://internal.local').searchParams.get('rehearsal');
+  if(rehearsal){
+   if(req.method!=='POST'||suppliedEnv.NOTIFICATION_SETUP_TEST_ENABLED!=='true'||!/^[a-f0-9-]{36}$/i.test(rehearsal))return reply(403,{error:'Private rehearsal is disabled'});
+   // Operator-only, work-inbox-only claim. Public launch and ordinary dispatch stay gated.
+   env={...env,AUTH_ENABLED:'true',NOTIFICATIONS_ENABLED:'true'};
+  }
   if(env.AUTH_ENABLED!=='true'||env.NOTIFICATIONS_ENABLED!=='true')return reply(200,{enabled:false,sent:0});
   if(!env.RESEND_API_KEY||!env.SUPABASE_SERVICE_ROLE_KEY)return reply(503,{error:'Notification delivery is not configured'});
   const db=clientFactory(env.SUPABASE_URL,env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
   const rpc=async(name,args)=>{const r=await db.rpc(name,args);if(r.error)throw Error('Notification queue unavailable');return r.data;};
   try{
-   const jobs=await rpc('api_notification_claim',{p_limit:10});let sent=0,failed=0;
+   const jobs=rehearsal?await rpc('service_rehearsal_notification_claim',{p_booking:rehearsal}):await rpc('api_notification_claim',{p_limit:10});let sent=0,failed=0;
    for(const job of jobs){
     let provider=null,error=null;
     try{
+     if(rehearsal&&(job.recipient!=='khris.nun@proverbs31cleaningcoservices.info'||job.snapshot?.booking?.id!==rehearsal||!String(job.snapshot?.booking?.property?.care_notes||'').startsWith('P31 CONNECTED REHEARSAL ')))throw Error('Rehearsal recipient rejected');
      let guestUrl;
      if(job.snapshot.booking.status!=='cancelled'&&!job.snapshot.account_enabled&&env.GUEST_PORTAL_ENABLED==='true'&&env.GUEST_LINK_SECRET){
       const token=createHmac('sha256',env.GUEST_LINK_SECRET).update(job.id).digest('base64url');
