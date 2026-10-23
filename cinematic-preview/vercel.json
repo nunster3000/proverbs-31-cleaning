@@ -63,6 +63,23 @@
           "value": "noindex, nofollow"
         }
       ]
+    },
+    {
+      "source": "/guest-receipt.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
     }
   ],
   "installCommand": "npm ci --prefer-offline --no-audit --no-fund",

@@ -27,14 +27,18 @@ window.P31Live = (() => {
     }
     return config;
   }
+  const scriptLoads=new Map();
   function load(src) {
-    return new Promise((resolve, reject) => {
+    if(scriptLoads.has(src))return scriptLoads.get(src);
+    const pending=new Promise((resolve, reject) => {
       const s = document.createElement("script");
       s.src = src;
-      s.onload = resolve;
-      s.onerror = () => reject(new Error("Unable to load sign-in tools."));
+      const timer=setTimeout(()=>{s.remove();scriptLoads.delete(src);reject(new Error("Security tools did not load. Check your connection and try again."));},15000);
+      s.onload = ()=>{clearTimeout(timer);resolve();};
+      s.onerror = () => {clearTimeout(timer);s.remove();scriptLoads.delete(src);reject(new Error("Unable to load security tools. Check your connection and try again."));};
       document.head.append(s);
     });
+    scriptLoads.set(src,pending);return pending;
   }
   async function api(route, { method = "GET", data, query = {} } = {}) {
     await init();
@@ -74,20 +78,24 @@ window.P31Live = (() => {
       await load(
         "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit",
       );
-    let token = null;
+    let token = null,problem="Complete the security check first.";
     const widget = window.turnstile.render(target, {
       sitekey: config.turnstileSiteKey,
-      callback: (value) => (token = value),
-      "expired-callback": () => (token = null),
+      theme:"light",size:"flexible",
+      callback: (value) => {token=value;problem="Complete the security check first.";},
+      "expired-callback": () => {token=null;problem="Security check expired. Please complete it again.";},
+      "error-callback": () => {token=null;problem="Security check could not complete. Retry the check or reload this page.";},
+      "timeout-callback": () => {token=null;problem="Security check timed out. Please try again.";},
     });
     const value = () => {
-      if (!token) throw new Error("Complete the security check first.");
+      if (!token) throw new Error(problem);
       return token;
     };
     value.reset = () => {
       token = null;
       window.turnstile.reset(widget);
     };
+    value.dispose=()=>{token=null;window.turnstile.remove(widget);};
     return value;
   }
   async function signIn(email) {
@@ -116,7 +124,7 @@ window.P31Live = (() => {
       close.onclick = () => dialog.close();
       dialog.append(h, p, security, send, status, close);
       document.body.append(dialog);
-      let getToken = () => null;
+      let getToken = () => {if(config.turnstileSiteKey)throw new Error("Wait for the security check to load.");return null;};
       captcha(security)
         .then((fn) => (getToken = fn))
         .catch((e) => (status.textContent = e.message));
@@ -150,6 +158,7 @@ window.P31Live = (() => {
         "close",
         () => {
           subscription.unsubscribe();
+          getToken.dispose?.();
           resolve(dialog.returnValue === "verified");
           dialog.remove();
         },

@@ -29,3 +29,4 @@ test('forged, unpaid, and wrong-mode events cannot credit a booking',async()=>{
  assert.equal((await event({...paid,livemode:true})).writes,0);
  const unpaid=structuredClone(paid);unpaid.data.object.payment_status='unpaid';assert.equal((await event(unpaid)).writes,0);
 });
+test('anonymous deposit redirects return to the limited guest receipt instead of account login',async()=>{let params;await checkout({env,bookingId:id,kind:'deposit',actor:id,anonymous:true,clientFactory:()=>({rpc:async name=>({data:name==='api_payment_prepare'?{id,cents:5500,email:'guest@example.com',created_at:new Date().toISOString()}:{}})}),stripeFactory:()=>({checkout:{sessions:{create:async p=>{params=p;return{id:'cs_test_guest',ui_mode:'elements',client_secret:'fixture',status:'open',expires_at:Math.floor(Date.now()/1000)+3600}}}}})});assert.match(params.return_url,/\/guest-receipt.html\?payment=returned&booking=/);assert.doesNotMatch(params.return_url,/workspace/);});

@@ -137,10 +137,15 @@ window.P31LiveCareReady = (async () => {
   }
   const captcha = document.createElement("div");
   document.querySelector(".account-options").append(captcha);
-  const token = await L.captcha(captcha);
+  let token=()=>{throw new Error("Complete the security check before continuing.");};
+  const captchaStatus=document.createElement("p"),captchaRetry=document.createElement("button");
+  captchaStatus.setAttribute("role","status");captchaRetry.type="button";captchaRetry.textContent="Retry security check";captchaRetry.hidden=true;
+  captcha.after(captchaStatus,captchaRetry);
+  const prepareCaptcha=async()=>{captchaRetry.disabled=true;captchaRetry.hidden=true;try{token.dispose?.();captcha.replaceChildren();token=await L.captcha(captcha);captchaStatus.textContent="";}catch(e){captchaStatus.textContent=e.message;captchaRetry.hidden=false;}finally{captchaRetry.disabled=false;}};
+  captchaRetry.onclick=prepareCaptcha;await prepareCaptcha();
   if (!guest.disabled)
     guest.closest("label").querySelector("small").textContent =
-      "Request as a guest. Gabrielle can provide a private booking link for your walkthrough, price approval, and home-access form. Your private booking link will be sent by email when guest booking is available.";
+      "Book without creating an account. We’ll email a private link for your walkthrough, reviewed-price approval, and home-access form.";
   document.querySelector("#account-message").textContent =
     "Your email must be verified before an account booking is submitted.";
   document.querySelector("#signin-preview").onclick = async () => {
@@ -162,7 +167,7 @@ window.P31LiveCareReady = (async () => {
         const mode = choice.value;
         document.querySelector("#account-message").textContent =
           mode === "guest"
-            ? "Guest request selected. Keep your reference; Gabrielle can provide a private link to manage this booking."
+            ? "Guest booking selected. Use an email address you can access; your private booking link will be sent there."
             : "Verify your email before submitting an account booking.";
         document.querySelector("#signin-preview").hidden = mode !== "signin";
       }),
@@ -273,6 +278,7 @@ window.P31LiveCareReady = (async () => {
           user.email.toLowerCase() !== customerValue("email").toLowerCase()
         )
           throw new Error("Use your verified account email: " + user.email);
+        if(asGuest && user && !user.is_anonymous)throw new Error("You are signed into an account. Choose account booking, or sign out before booking as a guest.");
         if (asGuest && !user) {
           const result = await L.client.auth.signInAnonymously({
             options: { captchaToken: token() },
@@ -351,11 +357,11 @@ window.P31LiveCareReady = (async () => {
           link.href = "index.html";
           link.textContent = "Return home";
           p.textContent +=
-            " Keep this reference. Contact Gabrielle for a private booking link to upload your walkthrough, approve your reviewed price, and sign the home-access form. No email has been sent by this website.";
+            " Keep this reference. Contact Gabrielle for a private booking link to upload your walkthrough, approve your reviewed price, and sign the home-access form. Your private booking link will be emailed to the address you provided.";
         }
         if(L.config.paymentsEnabled){
           link.textContent='Pay booking deposit · '+money(records[0].quote_snapshot.deposit_cents/100);
-          link.href='#';link.onclick=async event=>{event.preventDefault();if(link.getAttribute('aria-disabled')==='true')return;link.setAttribute('aria-disabled','true');try{const paid=await P31Payments.start({booking:records[0],loadBooking:()=>L.api('booking',{query:{id:records[0].id}}),loadPolicies:()=>L.api('public-policies'),request:policy=>L.api('checkout',{method:'POST',data:{id:records[0].id,kind:'deposit',policy}})});if(paid){link.textContent='Open my booking';link.href='workspace.html';link.onclick=null;p.textContent='Your deposit has been verified. Open your booking to upload your walkthrough and follow your next steps.';}link.removeAttribute('aria-disabled');}catch(e){p.textContent=e.message+' Your booking request is saved. You can retry payment.';link.removeAttribute('aria-disabled');}};
+          link.href='#';link.onclick=async event=>{event.preventDefault();if(link.getAttribute('aria-disabled')==='true')return;link.setAttribute('aria-disabled','true');try{const paid=await P31Payments.start({booking:records[0],loadBooking:()=>L.api(user?.is_anonymous?'checkout-receipt':'booking',{query:{id:records[0].id}}),loadPolicies:()=>L.api('public-policies'),request:policy=>L.api('checkout',{method:'POST',data:{id:records[0].id,kind:'deposit',policy}})});if(paid){link.textContent=user?.is_anonymous?'Return home':'Open my booking';link.href=user?.is_anonymous?'index.html':'workspace.html';link.onclick=null;p.textContent=user?.is_anonymous?'Your deposit has been verified. Check your booking email for a private link to upload your walkthrough and follow your next steps. It may take a few minutes.':'Your deposit has been verified. Open your booking to upload your walkthrough and follow your next steps.';}link.removeAttribute('aria-disabled');}catch(e){p.textContent=e.message+' Your booking request is saved. You can retry payment.';link.removeAttribute('aria-disabled');}};
           p.textContent=records.length+' visit request(s) saved. Pay the first visit’s starting-price deposit to complete this booking step. Future visits are paid separately; no automatic recurring charges are authorized.';
         }
         const stars = document.createElement("div");

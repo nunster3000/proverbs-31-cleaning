@@ -215,6 +215,7 @@ function createHandler({
           profile: !user.is_anonymous ? await rpc("api_profile", {}) : null,
         });
       if (route === "bookings" && req.method === "POST") {
+        if(user.is_anonymous && (env.GUEST_CHECKOUT_ENABLED!=='true' || !env.TURNSTILE_SITE_KEY))throw new HttpError(403,'Guest checkout is not available.');
         if (!uuid(body.request_id))
           throw new HttpError(400, "A booking request ID is required");
         return reply(
@@ -227,9 +228,14 @@ function createHandler({
       }
       if(route==='checkout' && req.method==='POST'){
         if(user.is_anonymous && env.GUEST_CHECKOUT_ENABLED!=='true')throw new HttpError(403,'Guest checkout is not available.');
-        return reply(200,await checkout({env,bookingId:body.id,kind:body.kind,actor:user.id,policy:body.policy||{},clientFactory}));
+        return reply(200,await checkout({env,bookingId:body.id,kind:body.kind,actor:user.id,anonymous:user.is_anonymous===true,policy:body.policy||{},clientFactory}));
       }
       if(route==='payment-reviews' && req.method==='GET')return reply(200,await rpc('api_payment_reviews',{}));
+      if(route==='checkout-receipt'&&req.method==='GET'){
+        if(!user.is_anonymous||env.GUEST_CHECKOUT_ENABLED!=='true')throw new HttpError(403,'Guest receipt unavailable');
+        const id=url.searchParams.get('id');if(!uuid(id))throw new HttpError(400,'Booking ID required');
+        return reply(200,await rpc('api_guest_checkout_receipt',{p_id:id}));
+      }
       if (user.is_anonymous)
         throw new HttpError(403, "Account sign-in is required for this page.");
       if(route==='agreement-draft' && ['GET','POST'].includes(req.method)){

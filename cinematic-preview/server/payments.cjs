@@ -3,14 +3,14 @@ const {createClient}=require('@supabase/supabase-js');
 const {launchState}=require('./launch-clock.cjs');
 const fail=(status,message)=>{const e=Error(message);e.status=status;throw e;};
 function paymentConfigured(env,now=Date.now()){return env.PAYMENTS_ENABLED==='true' && ['test','live'].includes(env.STRIPE_MODE) && new RegExp('^(sk|rk)_'+env.STRIPE_MODE+'_').test(env.STRIPE_SECRET_KEY||'') && new RegExp('^pk_'+env.STRIPE_MODE+'_').test(env.STRIPE_PUBLISHABLE_KEY||'') && !!env.STRIPE_WEBHOOK_SECRET && !(env.VERCEL_ENV==='production' && env.STRIPE_MODE==='test' && !launchState(env,now).pending);}
-async function checkout({env,bookingId,kind,actor=null,guest=null,policy={},clientFactory=createClient,stripeFactory=key=>new Stripe(key,{maxNetworkRetries:2,timeout:20000})}){
+async function checkout({env,bookingId,kind,actor=null,guest=null,anonymous=false,policy={},clientFactory=createClient,stripeFactory=key=>new Stripe(key,{maxNetworkRetries:2,timeout:20000})}){
  if(!paymentConfigured(env))fail(503,'Online payments are not available yet.');
  if(!/^[0-9a-f-]{36}$/i.test(bookingId||'') || !['deposit','final'].includes(kind))fail(400,'Choose a booking and payment type.');
  const db=clientFactory(env.SUPABASE_URL,env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
  const rpc=async(name,args)=>{const r=await db.rpc(name,args);if(r.error)fail(r.error.code==='42501'?403:409,r.error.message);return r.data;};
  const attempt=await rpc('api_payment_prepare',{p_id:bookingId,p_kind:kind,p_actor:actor,p_guest:guest,p_policy:policy});
  const origin=new URL(env.APP_ORIGIN).origin;
- const returnUrl=origin+(guest?'/guest.html':'/workspace.html')+'?payment=returned&booking='+encodeURIComponent(bookingId);
+ const returnUrl=origin+(guest?'/guest.html':anonymous?'/guest-receipt.html':'/workspace.html')+'?payment=returned&booking='+encodeURIComponent(bookingId);
  const stripe=stripeFactory(env.STRIPE_SECRET_KEY);
  const result=session=>{
   if(session.ui_mode!=='elements' || !session.client_secret || session.status==='complete')fail(409,'This payment has changed or is processing. Refresh your booking before trying again.');
