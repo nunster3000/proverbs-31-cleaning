@@ -174,9 +174,10 @@ function createHandler({
       if (route === "catalog" && req.method === "GET")
         return reply(200, {
           spaces: await read(db.from("service_spaces").select("*").order("id")),
-          services: await read(db.from("service_types").select("*")),
+          services: (await read(db.from("service_types").select("*"))).filter(row=>row.id!=="class"),
           addons: await read(db.from("service_addons").select("*")),
         });
+      if(route==='class-quote' && req.method==='POST')return reply(200,await rpc('api_class_quote',{p_tier:body.tier,p_students:body.students}));
       if (route === "quote" && req.method === "POST")
         return reply(
           200,
@@ -187,13 +188,13 @@ function createHandler({
             p_extras: body.extras || {},
           }),
         );
-      if (route === "availability" && req.method === "GET") {
+      if (["availability","class-availability"].includes(route) && req.method === "GET") {
         const date = url.searchParams.get("start");
         if (!/^\d{4}-\d{2}-\d{2}$/.test(date || ""))
           throw new HttpError(400, "Start date required");
         return reply(
           200,
-          await rpc("api_availability", {
+          await rpc(route==='class-availability'?'api_class_availability':"api_availability", {
             p_start: date,
             p_days: Number(url.searchParams.get("days") || 31),
           }),
@@ -239,6 +240,11 @@ function createHandler({
           role: owner ? "owner" : user.is_anonymous ? "guest" : "customer",
           profile: !user.is_anonymous ? await rpc("api_profile", {}) : null,
         });
+      if(route==='class-bookings' && req.method==='POST'){
+        if(user.is_anonymous)throw new HttpError(403,'Register a customer account before booking a class.');
+        if(!uuid(body.request_id))throw new HttpError(400,'A booking request ID is required');
+        return reply(201,await rpc('api_create_class_booking',{p_data:body.booking,p_request:body.request_id}));
+      }
       if (route === "bookings" && req.method === "POST") {
         if(user.is_anonymous && (env.GUEST_CHECKOUT_ENABLED!=='true' || !env.TURNSTILE_SITE_KEY))throw new HttpError(403,'Guest checkout is not available.');
         if (!uuid(body.request_id))

@@ -25,6 +25,7 @@
       afternoon: "12:00 PM – 3:00 PM",
     },
     labels = {
+      class: "Learning class",
       standard: "Standard Cleaning",
       deep: "Deep Cleaning",
       apartment: "Apartment Cleaning",
@@ -343,6 +344,7 @@
       b.setAttribute("aria-current", b.dataset.view === view ? "page" : "false");
     });
     if (view === "Bookings" || view === "Walkthroughs" || view === "Payments") {
+      if(view==='Bookings'){const enrollment=n('a','Book a private class','outline');enrollment.href='class-booking.html';root.append(enrollment);}
       if (me.role === "owner"){
         root.append(btn("Add manual booking", manual, "primary"));
         if(view==='Payments' && L.config.paymentsEnabled){const reviews=section('Stripe payment review');root.append(reviews);L.api('payment-reviews').then(rows=>{if(!rows.length){reviews.remove();return;}rows.forEach(item=>reviews.append(n('p','Payment received needs review: '+money(item.cents)+' · '+item.kind+' · Booking '+item.booking_id+' · '+item.payment_intent)));reviews.append(n('p','Check the payment in Stripe before reconciling it. No automatic refund or fee has been applied.','fine'));}).catch(()=>reviews.append(n('p','Unable to load Stripe reviews. Try again.')));}
@@ -350,11 +352,12 @@
       let list = records;
       if (view === "Walkthroughs")
         list = list.filter(
-          (b) => !b.invoice_issued && b.status !== "cancelled",
+          (b) => b.service!=="class" && !b.invoice_issued && b.status !== "cancelled",
         );
       if (view === "Payments")
         list = list.filter((b) => b.status !== "cancelled");
       list.forEach((b) => {
+        if(b.service==="class"){root.append(P31Classes.card(b,()=>detail(records.find(x=>x.id===b.id)||b)));return;}
         const c = section(
           b.property?.name || b.customers?.name || b.quote_snapshot.service,
         );
@@ -397,7 +400,7 @@
       c.append(
         n(
           "p",
-          "Manage visits and open cleaning blocks here. Calendar exports save a copy to your personal calendar.",
+          "Manage cleaning visits, private classes and available time blocks here. Calendar exports save a copy to your personal calendar.",
         ),
       );
       const date = input("date", calendarDate),
@@ -841,6 +844,11 @@
     readBookingAttention(b.id);
     const root = $("#workspace-detail");
     root.replaceChildren();
+    if(b.service==='class'){
+      $('#workspace-dialog .dialog-header h2').textContent='Class booking';
+      P31Classes.detail(b,root,{owner:me.role==='owner',api:L.api,act,action:(name,data,request)=>action(b,name,data,request),refresh:async()=>{await reload();detail(records.find(x=>x.id===b.id)||await L.api('booking',{query:{id:b.id}}));}});
+      if(!$('#workspace-dialog').open)$('#workspace-dialog').showModal();return;
+    }
     const info = section(b.customers?.name || "Your cleaning");
     info.dataset.checklistTarget="progress";
     info.append(progress(b));
@@ -1632,6 +1640,8 @@
       }
     };
     await reload();
+    const requestedBooking=new URLSearchParams(location.search).get('booking');
+    if(/^[0-9a-f-]{36}$/i.test(requestedBooking||''))detail(await L.api('booking',{query:{id:requestedBooking}}));
     startWorkspaceSync();
   } catch (e) {
     $("#workspace-title").textContent =

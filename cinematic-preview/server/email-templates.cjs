@@ -10,6 +10,7 @@ const kinds = ['payment_received','booking_requested','booking_updated','quote_r
 function renderEmail(kind, booking, {accountEnabled=false,guestUrl,eventDetails={}}={}) {
   if(!kinds.includes(kind))throw Error('Unsupported notification');
   const q=booking.quote_snapshot;
+  if(booking.service==='class')return renderClassEmail(kind,booking);
   const paid=booking.deposit_paid_cents+booking.final_paid_cents;
   const total=booking.final_cents ?? q.total_cents;
   const [subject,intro]=({
@@ -48,3 +49,12 @@ function renderEmail(kind, booking, {accountEnabled=false,guestUrl,eventDetails=
     html:emailLayout({preheader:subject,eyebrow:kind==='quote_ready'?'Review your quote':kind==='final_balance_ready'?'Your payment summary':'Your cleaning visit',title:headings[kind],content:paragraph(intro)+detailTable(rows)+paragraph('* Starting prices are estimates. Final pricing is subject to walkthrough review and your approval.'),cta,url,note})};
 }
 module.exports={renderEmail,kinds};
+
+function renderClassEmail(kind,b){
+ const names={payment_received:'Class payment received',booking_requested:'Your private class request',booking_confirmed:'Your private class is reserved',booking_rescheduled:'Your class has been rescheduled',booking_cancelled:'Your class has been cancelled',change_request_declined:'Your class change request was reviewed',booking_updated:'Your class details have been updated',service_completed:'Your class is complete',final_balance_ready:'Your remaining class tuition is ready',quote_ready:'Your class tuition'};
+ const subject=names[kind],q=b.quote_snapshot,paid=b.deposit_paid_cents+b.final_paid_cents;
+ const intro=kind==='booking_requested'?'Your private class request has been received. Pay the $30 deposit in your customer portal to reserve the slot.':kind==='final_balance_ready'?'Gabrielle has issued your remaining tuition balance. Sign in to your customer portal to pay securely.':'Open your customer portal to review the latest class details and payment records.';
+ const rows=[['Program',q.service],['Students',String(q.students)],['Class option',q.tier],['Reserved time block',b.visit_date+' · '+arrivalLabel(b.arrival)+' Eastern Time'],[b.property?.class_location_preference?'Location / delivery preference':'Class location',b.property?.address||'To be confirmed'],['Group tuition',money(b.final_cents)],['Required booking deposit','$30.00'],['Payments recorded',money(paid)],['Remaining tuition',money(Math.max(0,b.final_cents-paid))],['Booking reference',b.id]];
+ const url='https://www.proverbs31cleaningcoservices.info/workspace.html?booking='+encodeURIComponent(b.id),note='The program lasts two hours from the start of the reserved block. Payment and location details are available in your portal.';
+ return {subject,text:[intro,...rows.map(([k,v])=>k+': '+v),note,url].join('\n\n'),html:emailLayout({preheader:subject,eyebrow:'Proverbs 31 Learning',title:subject,content:paragraph(intro)+detailTable(rows),cta:'View my class',url,note})};
+}

@@ -3,6 +3,7 @@
   const button = form.querySelector('button');
   const email = document.querySelector('#sign-in-email');
   const status = document.querySelector('#sign-in-status');
+  try{if(new URLSearchParams(location.search).get('next')==='class-booking')sessionStorage.setItem('p31-class-return','1');}catch{}
   let busy = false, ownerPreview=false, opening, redirected=false;
   async function openWorkspace() {
     // Role and email verification come from the authenticated API, never the URL.
@@ -12,7 +13,9 @@
     redirected=true;
     status.textContent = 'Opening your dashboard…';
     button.disabled = true; email.disabled = true;
-    location.replace(ownerPreview?'owner-preview.html':'workspace.html');
+    let classReturn=new URLSearchParams(location.search).get('next')==='class-booking';
+    try{classReturn=classReturn||sessionStorage.getItem('p31-class-return')==='1';sessionStorage.removeItem('p31-class-return');}catch{}
+    location.replace(ownerPreview?'owner-preview.html':classReturn?'class-booking.html':'workspace.html');
     return true;
   }
   try {

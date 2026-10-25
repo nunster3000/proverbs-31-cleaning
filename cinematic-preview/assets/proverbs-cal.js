@@ -56,10 +56,10 @@ window.P31Cal = (() => {
       start: utc(date, times[0], zone),
       end: utc(date, times[1], zone),
       title:
-        "Proverbs 31 · " + (b.customers?.name || b.name || "Cleaning visit"),
+        "Proverbs 31 · " + (b.service==='class'?'Class · '+(b.property?.name||b.customers?.name||'Learning group')+' · '+b.quote_snapshot.students+' students':(b.customers?.name || b.name || "Cleaning visit")),
       address: b.property?.address || b.address || "",
       description:
-        "Arrival window · " +
+        (b.service==='class'?"Reserved class block · ":"Arrival window · ") +
         (b.serviceLabel || b.service || "Cleaning") +
         ". Manage this visit in Proverbs 31 Cal. Exported copy; changes here do not update the booking.",
     };
