@@ -9,10 +9,43 @@ window.P31Workflow = (() => {
     if (active.reduce((sum, item) => sum + Number(item.bytes || 0), 0) + file.size > 80 * 1024 * 1024) throw Error('The total walkthrough limit is 80 MB per booking. Remove a file or use a smaller video.');
     return true;
   }
-  const inputTypes = [...types, 'image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence', '.heic', '.heif'];
+  const photoInputTypes=['image/jpeg','image/png','image/webp','image/heic','image/heif','image/heic-sequence','image/heif-sequence','image/avif','image/bmp','image/gif','.jpg','.jpeg','.jfif','.png','.webp','.heic','.heif','.avif','.bmp','.gif'];
+  const inputTypes=[...photoInputTypes,'video/mp4','video/webm','video/quicktime','.mp4','.webm','.mov'];
+  const photoFormats='JPG/JPEG, PNG, WebP, HEIC/HEIF, AVIF, BMP, or GIF (still image)';
+  const photoHint='Photos: '+photoFormats+'. Up to 20 MB; large photos are resized automatically.';
+  const isPhoto=file=>!!file && (/^image\//i.test(file.type||'') || /\.(jpe?g|jfif|png|webp|hei[cf]|avif|bmp|gif)$/i.test(file.name||''));
+  async function prepareFile(file,existing=[],progress=()=>{}) {
+    if(!file)throw Error('Choose a photo or video.');
+    let chosen=file;
+    if(isHeic(file))chosen=await prepareHeic(file,existing,progress);
+    else if(isPhoto(file)){
+      const extension=(file.name||'').split('.').pop().toLowerCase();
+      const mime={'jpg':'image/jpeg','jpeg':'image/jpeg','jfif':'image/jpeg','png':'image/png','webp':'image/webp','avif':'image/avif','bmp':'image/bmp','gif':'image/gif'}[extension];
+      if((!file.type || file.type==='application/octet-stream' || file.type==='image/jpg') && mime)chosen=new File([file],file.name,{type:mime,lastModified:file.lastModified});
+    }
+    if(isPhoto(chosen)){
+      if(!chosen.size || chosen.size>20*1024*1024)throw Error('Photos must be between 1 byte and 20 MB.');
+      if(!['image/jpeg','image/png','image/webp','image/avif','image/bmp','image/x-ms-bmp','image/gif'].includes(chosen.type))throw Error('Use '+photoFormats+'.');
+      if(chosen.size>2*1024*1024 || !types.includes(chosen.type)){
+        progress('Preparing photo for upload�');
+        let bitmap;
+        try{bitmap=await createImageBitmap(chosen);}catch{throw Error('This browser could not open the photo. Try JPG or PNG instead.');}
+        try{
+          const canvas=document.createElement('canvas'),scale=Math.min(1,2000/Math.max(bitmap.width,bitmap.height));
+          canvas.width=Math.max(1,Math.round(bitmap.width*scale));canvas.height=Math.max(1,Math.round(bitmap.height*scale));
+          const ctx=canvas.getContext('2d');ctx.fillStyle='#ffffff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);
+          let blob;
+          for(const quality of [.9,.8,.65,.5]){blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',quality));if(blob && blob.size<=2097152)break;}
+          if(!blob || blob.size>2097152)throw Error('This photo is still too large. Choose a smaller photo.');
+          chosen=new File([blob],(file.name||'photo').replace(/\.[^.]+$/,'')+'.jpg',{type:'image/jpeg'});
+        }finally{bitmap.close();}
+      }
+    }
+    validateFile(chosen,existing);return chosen;
+  }
   const isHeic = file => !!file && (/^image\/hei[cf](?:-sequence)?$/i.test(file.type || '') || /\.hei[cf]$/i.test(file.name || ''));
   let converter;
-  async function prepareFile(file, existing = [], progress = () => {}) {
+  async function prepareHeic(file, existing = [], progress = () => {}) {
     if (!isHeic(file)) { validateFile(file, existing); return file; }
     // Check source size/count before allocating the decoder; check JPEG quota again afterward.
     validateFile({type:'image/jpeg',size:file.size}, existing);
@@ -63,5 +96,6 @@ window.P31Workflow = (() => {
       approvals:freshActivity.some(e=>['accept_quote','record_approval','external_approval'].includes(e.action)) || rows.some(b=>{const old=before.records.find(o=>o.id===b.id);return old && old.quote_status!==b.quote_status && b.quote_status==='accepted'})
     };
   }
-  return {validateFile,prepareFile,inputTypes,isHeic,totals,types,milestone,syncChanges};
+  return {validateFile,prepareFile,inputTypes,photoInputTypes,photoHint,isPhoto,isHeic,totals,types,milestone,syncChanges};
 })();
+

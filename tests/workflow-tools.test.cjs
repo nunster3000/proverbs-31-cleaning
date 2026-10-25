@@ -119,3 +119,14 @@ test('converter downloads only on HEIC selection and a failed download can be re
  await w.prepareFile(new File(['jpg'],'plain.jpg',{type:'image/jpeg'}));assert.equal(loads,0);
  const file=new File(['heic'],'room.heic',{type:'image/heic'});await assert.rejects(()=>w.prepareFile(file),/couldn’t convert/);assert.equal((await w.prepareFile(file)).type,'image/jpeg');assert.equal(loads,2);
 });
+
+test('additional photo formats convert to validated JPEGs and large photos are resized',async()=>{
+ let closed=0,drawn=0;
+ const ctx={window:{},File,createImageBitmap:async()=>({width:4000,height:3000,close(){closed++}}),document:{createElement:()=>({getContext:()=>({fillRect(){},drawImage(){drawn++}}),toBlob(cb){cb(new Blob(['jpeg'],{type:'image/jpeg'}))}})}};
+ vm.runInNewContext(fs.readFileSync('cinematic-preview/assets/workflow-tools.js','utf8'),ctx);
+ const w=ctx.window.P31Workflow;
+ for(const ext of ['avif','bmp','gif']){const result=await w.prepareFile(new File(['source'],'photo.'+ext,{type:'image/'+ext}));assert.equal(result.type,'image/jpeg');assert.equal(result.name,'photo.jpg');}
+ const result=await w.prepareFile(new File([new Uint8Array(3*1024*1024)],'large.png',{type:'image/png'}));assert.equal(result.type,'image/jpeg');assert.ok(result.size<=2097152);assert.equal(closed,4);assert.equal(drawn,4);
+ const jpeg=await w.prepareFile(new File(['jpeg'],'photo.JPEG'));assert.equal(jpeg.type,'image/jpeg');
+ await assert.rejects(w.prepareFile(new File(['svg'],'photo.svg',{type:'image/svg+xml'})),/Use JPG/);
+});
