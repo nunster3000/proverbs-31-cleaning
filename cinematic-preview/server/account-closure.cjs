@@ -1,3 +1,4 @@
+const emailSenders=require('./email-senders.cjs');
 const {createClient}=require('@supabase/supabase-js');
 const Stripe=require('stripe');
 const {timingSafeEqual,randomBytes,createHash}=require('node:crypto');
@@ -120,7 +121,7 @@ function createAccountMaintenanceHandler({env=process.env,clientFactory=createCl
    // Owner notification is a privacy receipt, independent of automatic customer emails.
    for(const notice of notices.data||[]){
     if(!env.RESEND_API_KEY)continue;
-    const r=await send('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+env.RESEND_API_KEY,'Content-Type':'application/json','Idempotency-Key':'p31-account-deleted-'+notice.id},body:JSON.stringify({from:'Proverbs 31 Cleaning Co. <gabriellejackson@proverbs31cleaningcoservices.info>',to:['gabriellejackson@proverbs31cleaningcoservices.info'],subject:'Customer account deleted · Proverbs 31',text:'A customer account was deleted automatically after its bookings and payments were resolved. Reference: '+notice.id+'. Required service, invoice and signed-agreement history remains available in Privacy & operations. The customer login, profile details and operational uploads were removed. No approval is needed.'}),signal:AbortSignal.timeout(15000)});
+    const r=await send('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+env.RESEND_API_KEY,'Content-Type':'application/json','Idempotency-Key':'p31-account-deleted-'+notice.id},body:JSON.stringify({from:emailSenders.notifications,to:['gabriellejackson@proverbs31cleaningcoservices.info'],subject:'Customer account deleted · Proverbs 31',text:'A customer account was deleted automatically after its bookings and payments were resolved. Reference: '+notice.id+'. Required service, invoice and signed-agreement history remains available in Privacy & operations. The customer login, profile details and operational uploads were removed. No approval is needed.'}),signal:AbortSignal.timeout(15000)});
     if(!r.ok||!(await r.json()).id)throw Error();const saved=await db.rpc('service_account_closure',{p_action:'notified',p_id:notice.id});if(saved.error)throw Error();
    }
    return reply(200,{enabled:true,processed:queue.data.length,completed,customerUpdates:delivery});

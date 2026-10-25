@@ -1,3 +1,4 @@
+const emailSenders=require('./email-senders.cjs');
 const {emailLayout,paragraph,detailTable}=require('./email-layout.cjs');
 const {effectiveEnv}=require('./launch-clock.cjs');
 const issues={
@@ -29,7 +30,7 @@ async function deliverClosureIssueEmails({db,env,send=fetch,clock=Date.now}){
  const jobs=await db.rpc('service_closure_mail',{p_action:'claim'});if(jobs.error)throw Error('Deletion email queue unavailable');
  let sent=0,failed=0;
  for(const job of jobs.data||[]){let provider=null;
-  try{const message=renderClosureIssueEmail(job);const r=await send('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+env.RESEND_API_KEY,'Content-Type':'application/json','Idempotency-Key':'p31-closure-issue-'+job.id+'-'+job.email_generation},body:JSON.stringify({from:'Proverbs 31 Cleaning Company <gabriellejackson@proverbs31cleaningcoservices.info>',reply_to:'gabriellejackson@proverbs31cleaningcoservices.info',to:[job.recipient],...message}),signal:AbortSignal.timeout(15000)});if(r.ok)provider=(await r.json()).id||null;}catch{}
+  try{const message=renderClosureIssueEmail(job);const r=await send('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+env.RESEND_API_KEY,'Content-Type':'application/json','Idempotency-Key':'p31-closure-issue-'+job.id+'-'+job.email_generation},body:JSON.stringify({from:emailSenders.notifications,reply_to:'gabriellejackson@proverbs31cleaningcoservices.info',to:[job.recipient],...message}),signal:AbortSignal.timeout(15000)});if(r.ok)provider=(await r.json()).id||null;}catch{}
   const saved=await db.rpc('service_closure_mail',{p_action:'finish',p_id:job.id,p_data:{lease:job.lease_id,generation:job.email_generation,provider}});if(saved.error)throw Error('Deletion email receipt unavailable');if(provider&&saved.data?.saved)sent++;else failed++;
  }
  return {enabled:true,sent,failed};

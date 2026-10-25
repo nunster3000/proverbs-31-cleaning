@@ -7,7 +7,7 @@ test('class registration and paid confirmation emails deliver schedule, group an
  for(const kind of ['booking_requested','payment_received']){
   let payload;const paid=kind==='payment_received';const notice={...job,kind,snapshot:{account_enabled:true,booking:{...booking,status:paid?'confirmed':'requested',deposit_paid_cents:paid?3000:0}}};
   const result=await run({claimedJobs:[notice],send:async(u,o)=>{payload=JSON.parse(o.body);return{ok:true,json:async()=>({id:'class-email'})}}});
-  assert.equal(result.out.sent,1);assert.deepEqual(payload.to,['customer@example.com']);
+  assert.equal(result.out.sent,1);assert.deepEqual(payload.to,['customer@example.com']);assert.match(payload.from,/<noreply@proverbs31cleaningcoservices.info>/);assert.equal(payload.reply_to,'gabriellejackson@proverbs31cleaningcoservices.info');
   for(const text of ['2026-11-02','9:00 AM Eastern Time','Example Hotel','123 Sample St','Final payment due','48 hours']){assert.ok(payload.text.includes(text),text);assert.ok(payload.html.includes(text),text);}
   assert.match(payload.text,/Students: 3/);assert.match(payload.html,/Hotel &amp; Suites/);assert.doesNotMatch(payload.html,/home-access|walkthrough|delivery preference/);
   assert.match(payload.subject,paid?/class is confirmed/:/registration was received/);
