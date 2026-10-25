@@ -1,0 +1,13 @@
+const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+class Element{
+ constructor(tag){this.tagName=tag;this.children=[];this.value='';this.files=[];this.hidden=false;this.textContent='';}
+ append(...nodes){for(const node of nodes){this.children.push(node);node.parent=this;}}
+ replaceChildren(...nodes){this.children=[];this.append(...nodes)}
+ setAttribute(key,value){this[key]=value}
+ addEventListener(){} click(){} reset(){} reportValidity(){return true}
+ querySelectorAll(tag){return this.children.flatMap(c=>[...(c.tagName===tag?[c]:[]),...c.querySelectorAll(tag)])}
+ querySelector(tag){return this.querySelectorAll(tag)[0]}
+}
+async function harness(){const elements=[],dirty=[];const context={window:{},document:{createElement:tag=>{const e=new Element(tag);elements.push(e);return e}},P31Workflow:{inputTypes:[],photoHint:'Photo formats',isPhoto:()=>false},URL:{createObjectURL:()=> 'blob:test',revokeObjectURL(){}},File};vm.runInNewContext(fs.readFileSync('cinematic-preview/assets/gallery-admin.js','utf8'),context);const root=context.window.P31GalleryAdmin.render({onDirty:value=>dirty.push(value),api:async route=>{if(route==='gallery')return {items:[]};throw Error('Connection unavailable. Please retry.')}});await new Promise(resolve=>setImmediate(resolve));return {root,elements,dirty};}
+test('gallery selection supplies a title and explicitly distinguishes selected from uploaded',async()=>{const h=await harness();h.root.querySelectorAll('button').find(b=>b.textContent==='Upload file').onclick();const file=h.elements.find(e=>e.type==='file');file.files=[new File(['photo'],'Kitchen_After.jpg',{type:'image/jpeg'})];file.onchange();assert.ok(h.elements.some(e=>e.value==='Kitchen After'));assert.equal(h.dirty.at(-1),true);assert.equal(h.elements.filter(e=>e.textContent==='File selected. Review the title, then click Upload selected file.').length,2);});
+test('gallery failures remain visible beside the upload button and allow retry',async()=>{const h=await harness();h.root.querySelectorAll('button').find(b=>b.textContent==='Upload file').onclick();const file=h.elements.find(e=>e.type==='file');file.files=[new File(['video'],'Room.mov',{type:'video/quicktime'})];file.onchange();const form=h.elements.find(e=>e.tagName==='form');await form.onsubmit({preventDefault(){}});assert.ok(form.children.some(e=>e.textContent==='Connection unavailable. Please retry.'));assert.equal(h.elements.find(e=>e.textContent==='Upload selected file').disabled,false);assert.equal(h.dirty.at(-1),true);});
