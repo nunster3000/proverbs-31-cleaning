@@ -1039,6 +1039,7 @@
       });
       uploadForm.append(preview,progress,status,n("p","iPhone HEIC photos are converted to JPG on your device. Up to 6 files, 20 MB each and 80 MB total per booking. Avoid including people, IDs, payment details, or access codes in your photos.","fine"));
     }
+    P31MediaSlots.mount(media,{key:b.id+':walkthrough',files:(b.walkthrough_files||[]).filter(f=>f.status!=='deleted'&&f.purpose!=='completion'),api:L.api,label:'Walkthrough',editable:!b.invoice_issued&&['requested','awaiting_walkthrough'].includes(b.status)});
     root.append(media);
     if(me.role!=="owner"){
       const payments=section("Payments & next steps");payments.dataset.checklistTarget="payments";
@@ -1067,7 +1068,7 @@
   }
   function completionMedia(b,root){
     const files=(b.walkthrough_files || []).filter(f=>f.purpose==='completion' && f.status!=='deleted');
-    if(me.role!=='owner' && !files.length)return;
+    if(me.role!=='owner' && !files.length && !['in_progress','completed'].includes(b.status))return;
     const box=section('Cleaning completion photos & videos');
     box.append(n('p','Completion photos are optional and may be added after the visit is marked Completed. A verified upload can also complete a visit that is still in progress.','fine'));
     files.forEach(f=>{const row=n('div',undefined,'list-row');row.append(n('p',f.room+' · '+f.filename+' · '+(f.status==='ready'?'Verified':'Upload incomplete')));if(f.status==='ready')row.append(btn('Preview',async()=>{const data=await L.api('file',{query:{id:f.id}});const win=n('dialog',undefined,'live-auth'),item=n(f.mime.startsWith('image/')?'img':'video');item.src=data.url;if(item.tagName==='VIDEO')item.controls=true;else item.alt=f.room;win.append(n('h2','Cleaning completed'),item,btn('Close',()=>win.close()));win.addEventListener('close',()=>{if(item.tagName==='VIDEO')item.pause();win.remove();},{once:true});document.body.append(win);win.showModal();}));box.append(row);});
@@ -1076,6 +1077,7 @@
       file.onchange=async()=>{const token=++selection,button=f.querySelector('button');button.disabled=true;preview.replaceChildren();selected=null;attempted=false;try{const chosen=await P31Workflow.prepareFile(file.files[0],files,text=>{if(token===selection)status.textContent=text});if(token!==selection || !file.isConnected)return;selected=chosen;const url=URL.createObjectURL(chosen);previewUrls.add(url);const item=n(chosen.type.startsWith('image/')?'img':'video');item.src=url;if(item.tagName==='VIDEO')item.controls=true;else item.alt='Post-cleaning photo';preview.append(item,n('p',chosen.name,'fine'));status.textContent='Ready to upload. Successful verification will complete this visit.';}catch(e){if(token===selection){file.value='';status.textContent=e.message;}}finally{if(token===selection)button.disabled=false;}};
       const f=form(box,[['Room / area completed',room],['Post-cleaning photo or video',file],['Completion notes',notes]],b.status==='completed'?'Add completion evidence':'Upload & mark Completed',async()=>{if(!selected)throw Error('Choose a completion photo or video.');if(!attempted)P31Workflow.validateFile(selected,files);attempted=true;meter.hidden=false;const saved=await act(()=>L.upload(b.id,selected,room.value.trim(),notes.value,event=>{if(event.percent!==undefined)meter.value=event.percent;status.textContent=event.stage==='complete'?'Completed':event.stage==='verifying'?'Verifying upload…':'Uploading completion evidence…';},'completion'),'Completion evidence verified. Visit marked Completed.');if(!saved){status.textContent='Upload did not complete. Retry the selected file.';f.querySelector('button').textContent='Retry completion upload';}});f.append(preview,meter,status);
     }
+    P31MediaSlots.mount(box,{key:b.id+':completion',files,api:L.api,label:'Post-cleaning',editable:me.role==='owner'&&['in_progress','completed'].includes(b.status)});
     root.append(box);
   }
   function ownerDetail(b, root) {
