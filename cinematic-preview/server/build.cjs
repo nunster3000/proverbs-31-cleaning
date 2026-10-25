@@ -22,3 +22,16 @@ require('esbuild').buildSync({
 fs.copyFileSync('node_modules/heic-to/LICENSE', 'dist/assets/heic-to-LICENSE.txt');
 
 require("esbuild").buildSync({entryPoints:["server/agreement-pdf-entry.js"],bundle:true,minify:true,format:"iife",outfile:"dist/assets/agreement-pdf.js"});
+
+// Dashboard HTML is not cached; content-based asset versions also prevent stale
+// browser/proxy copies from mixing uploader code from different deployments.
+for (const name of ['workspace.html','owner-preview.html']) {
+  const file=path.join('dist',name);
+  const html=fs.readFileSync(file,'utf8').replace(/(src|href)="((?:\/?assets\/)[^"?]+\.(?:js|css))"/g,(match,attribute,url)=>{
+    const asset=path.join('dist',url.replace(/^\//,''));
+    if(!fs.existsSync(asset))return match;
+    const version=require('node:crypto').createHash('sha256').update(fs.readFileSync(asset)).digest('hex').slice(0,12);
+    return attribute+'="'+url+'?v='+version+'"';
+  });
+  fs.writeFileSync(file,html);
+}
