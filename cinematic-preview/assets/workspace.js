@@ -685,12 +685,37 @@
       specs.forEach(([label,key,max])=>{const field=key.includes('intro')||key==='founder_bio'||key==='service_area_note'?n('textarea'):input(key==='contact_email'?'email':key==='contact_phone'?'tel':'text');field.value=siteContent[key] || '';field.maxLength=max;field.required=!['founder_bio','contact_phone'].includes(key);fields[key]=field;});
       const socialFields={};
       P31Social.platforms.forEach(platform=>{const cfg=siteContent.social_links?.[platform.id] || {enabled:false,url:''};const visible=input('checkbox'),url=input('url',cfg.url);visible.checked=cfg.enabled===true;url.maxLength=2048;url.placeholder='https://'+platform.id+'.com/your-page';url.required=visible.checked;visible.onchange=()=>{url.required=visible.checked;url.setCustomValidity('')};url.oninput=()=>url.setCustomValidity('');socialFields[platform.id]={visible,url};});
-      let photoPath=siteContent.photo_path;
       const photo=n('img'),photoStatus=n('p'),file=input('file');file.accept='image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif';photo.alt='Public owner photo';photo.style.maxWidth='240px';photo.hidden=!siteContent.photo_url;if(siteContent.photo_url)photo.src=siteContent.photo_url;photoStatus.setAttribute('role','status');
-      const upload=btn('Upload owner photo',async()=>{if(!file.files[0])throw Error('Choose an owner photo first.');const chosen=await P31Workflow.prepareFile(file.files[0],[],text=>photoStatus.textContent=text);if(!chosen.type.startsWith('image/')||chosen.size>2097152)throw Error('Choose a JPG, PNG, or WebP photo up to 2 MB. HEIC photos convert automatically.');photoStatus.textContent='Uploading public photoâ€¦';const bytes=new Uint8Array(await chosen.arrayBuffer());let binary='';for(let i=0;i<bytes.length;i+=32768)binary+=String.fromCharCode(...bytes.subarray(i,i+32768));const saved=await L.api('site-photo',{method:'POST',data:{mime:chosen.type,base64:btoa(binary)}});photoPath=saved.path;photo.src=saved.url;photo.hidden=false;workspaceDirty=true;photoStatus.textContent='Photo uploaded. Save website content to display it on About Us.';});
-      const remove=btn('Remove photo from About Us',()=>{photoPath=null;photo.hidden=true;workspaceDirty=true;photoStatus.textContent='Save website content to remove the displayed photo.'},'text-btn');
-      const photoLabel=n('label','Owner photo');photoLabel.append(file);box.append(n('p','Only upload a photo intended for the public website. Up to 2 MB. Contact email changes do not change sign-in or admin permissions.','fine'),photo,photoLabel,upload,remove,photoStatus);
-      const pageForm=form(box,specs.map(([label,key])=>[label,fields[key]]),'Save website content',()=>act(async()=>{const socials={};for(const p of P31Social.platforms){const {visible,url}=socialFields[p.id],value=url.value.trim();if((visible.checked || value) && !P31Social.valid(p.id,value)){url.setCustomValidity('Enter a valid HTTPS '+p.label+' page URL, or clear it and turn visibility off.');url.reportValidity();throw Error('Check the '+p.label+' link.')}socials[p.id]={enabled:visible.checked,url:value}}const content=Object.fromEntries(Object.entries(fields).map(([key,field])=>[key,field.value.trim()]));content.photo_path=photoPath;content.social_links=socials;await L.api('site-content',{method:'POST',data:{content,revision:siteContent.revision}});},'Website content published.'));
+      let photoBusy=false;
+      const savePhoto=async(path,url)=>{
+        const saved=await L.api('site-content',{method:'POST',data:{content:{photo_path:path},revision:siteContent.revision}});
+        siteContent={...siteContent,...saved,photo_url:url};
+        photo.hidden=!path;if(url)photo.src=url;else photo.removeAttribute('src');
+        remove.hidden=!path;upload.textContent=path?'Replace photo':'Add photo';file.value='';
+      };
+      const photoAction=async(action)=>{
+        if(photoBusy)return;photoBusy=true;mutations++;
+        const saveButton=pageForm.querySelector('button');
+        upload.disabled=remove.disabled=file.disabled=saveButton.disabled=true;
+        try{await action();}catch(error){photoStatus.textContent='Photo change was not saved. '+error.message;throw error;}
+        finally{photoBusy=false;mutations--;upload.disabled=remove.disabled=file.disabled=saveButton.disabled=false;}
+      };
+      const upload=btn(siteContent.photo_path?'Replace photo':'Add photo',()=>photoAction(async()=>{
+        if(!file.files[0])throw Error('Choose an owner photo first.');
+        const chosen=await P31Workflow.prepareFile(file.files[0],[],text=>photoStatus.textContent=text);
+        if(!chosen.type.startsWith('image/')||chosen.size>2097152)throw Error('Choose a JPG, PNG, or WebP photo up to 2 MB. HEIC photos convert automatically.');
+        photoStatus.textContent='Uploading and saving photo…';
+        const bytes=new Uint8Array(await chosen.arrayBuffer());let binary='';for(let i=0;i<bytes.length;i+=32768)binary+=String.fromCharCode(...bytes.subarray(i,i+32768));
+        const uploaded=await L.api('site-photo',{method:'POST',data:{mime:chosen.type,base64:btoa(binary)}});
+        await savePhoto(uploaded.path,uploaded.url);
+        photoStatus.textContent='Photo saved to About Us. No additional save is needed.';
+      }));
+      const remove=btn('Remove photo',()=>photoAction(async()=>{
+        photoStatus.textContent='Removing photo…';await savePhoto(null,null);
+        photoStatus.textContent='Photo removed from About Us. You can add a new photo anytime.';
+      }),'text-btn');remove.hidden=!siteContent.photo_path;
+      const photoLabel=n('label','Choose owner photo');photoLabel.append(file);box.append(n('p','Add, replace, or remove your About Us photo here. Photo changes save immediately. Only upload a photo intended for the public website. Up to 2 MB; HEIC photos convert automatically.','fine'),photo,photoLabel,upload,remove,photoStatus);
+      const pageForm=form(box,specs.map(([label,key])=>[label,fields[key]]),'Save website content',()=>{if(photoBusy)return;return act(async()=>{const socials={};for(const p of P31Social.platforms){const {visible,url}=socialFields[p.id],value=url.value.trim();if((visible.checked || value) && !P31Social.valid(p.id,value)){url.setCustomValidity('Enter a valid HTTPS '+p.label+' page URL, or clear it and turn visibility off.');url.reportValidity();throw Error('Check the '+p.label+' link.')}socials[p.id]={enabled:visible.checked,url:value}}const content=Object.fromEntries(Object.entries(fields).map(([key,field])=>[key,field.value.trim()]));content.social_links=socials;await L.api('site-content',{method:'POST',data:{content,revision:siteContent.revision}});},'Website content published.');});
       const socials=n('section');socials.append(n('h3','Footer social media'),n('p','Turn a platform on and add its HTTPS page URL to show its icon. Turn it off to hide it. No profile links are supplied automatically.','fine'));
       P31Social.platforms.forEach(p=>{const group=n('fieldset');group.append(n('legend',p.label));const {visible,url}=socialFields[p.id];group.append(label('Show '+p.label+' icon',visible),label(p.label+' page URL',url));socials.append(group);});
       pageForm.insertBefore(socials,pageForm.lastElementChild);
