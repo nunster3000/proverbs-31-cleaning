@@ -2,17 +2,17 @@ window.P31GalleryAdmin=(()=>{
  const el=(t,text)=>{const e=document.createElement(t);if(text)e.textContent=text;return e;};
  function render({api,onDirty=()=>{}}){
   const root=el('section'),h=el('h2','Work gallery'),hint=el('p','Your website album has 10 spaces. Choose an empty space to add a photo or video. Uploads start as drafts; review and publish each item when ready.'),status=el('p'),list=el('div'),form=el('form'),file=el('input'),title=el('input'),alt=el('input'),caption=el('textarea'),submit=el('button','Upload selected file'),counter=el('p');let items=[],pending,busy=false,selectedSlot=null;
-  status.className='gallery-upload-status';status.setAttribute('role','status');list.className='gallery-admin-grid';counter.className='gallery-count';hint.className='gallery-hint';root.className='gallery-admin-album';file.type='file';file.accept=P31Workflow.inputTypes.join(',');file.title=P31Workflow.photoHint;file.required=true;title.required=true;title.maxLength=100;alt.maxLength=240;caption.maxLength=1000;submit.type='submit';submit.className='primary';
+  status.className='gallery-upload-status';status.setAttribute('role','status');list.className='gallery-admin-grid';counter.className='gallery-count';hint.className='gallery-hint';root.className='gallery-admin-album';file.type='file';file.accept=P31Workflow.inputTypes.join(',');file.title=P31Workflow.photoHint;file.required=true;title.required=true;title.maxLength=100;alt.maxLength=240;caption.maxLength=1000;submit.type='button';submit.className='primary';form.noValidate=true;
   const field=(text,input)=>{const label=el('label',text);label.append(input);return label;};
   const uploadStatus=el('p'),selectionPreview=el('div');uploadStatus.setAttribute('role','status');uploadStatus.className='gallery-upload-status';
-  const setStatus=text=>{status.textContent=text;uploadStatus.textContent=text;};
+  const setStatus=text=>{status.textContent=text;uploadStatus.textContent=text;if(busy)submit.textContent=text.startsWith('Uploading')?'Uploading…':'Working…';};
   let selectionUrl=null;
   const clearSelection=()=>{if(selectionUrl)URL.revokeObjectURL(selectionUrl);selectionUrl=null;selectionPreview.replaceChildren();};
   file.onchange=()=>{
     clearSelection();const chosen=file.files[0];if(!chosen){setStatus('Choose a photo or video to begin.');return;}
     onDirty(true);
     if(!title.value.trim())title.value=chosen.name.replace(/\.[^.]+$/,'').replace(/[_-]+/g,' ').slice(0,100);
-    selectionPreview.append(el('p',chosen.name+' · '+(chosen.size/1048576).toFixed(1)+' MB · selected, not uploaded yet'));
+    selectionPreview.append(el('p',chosen.name+' - '+(chosen.size/1048576).toFixed(1)+' MB'));
     if(['image/jpeg','image/png','image/webp','image/gif','image/avif','image/bmp'].includes(chosen.type)){
       selectionUrl=URL.createObjectURL(chosen);const preview=el('img');preview.src=selectionUrl;preview.alt='Selected gallery photo preview';selectionPreview.append(preview);
     }
@@ -30,7 +30,16 @@ window.P31GalleryAdmin=(()=>{
    }
    const actions=el('div');actions.className='gallery-admin-actions';const remove=el('button',item.kind==='video'?'Remove video':'Remove image');remove.type='button';remove.className='outline';remove.onclick=async()=>{if(busy)return;if(remove.dataset.confirm!=='yes'){remove.dataset.confirm='yes';remove.textContent='Confirm removal';const cancel=el('button','Keep item');cancel.type='button';cancel.onclick=()=>{delete remove.dataset.confirm;remove.textContent=item.kind==='video'?'Remove video':'Remove image';cancel.remove();};actions.append(cancel);return;}remove.disabled=true;try{await api('gallery-remove',{method:'POST',data:{id:item.id}});if(pending?.id===item.id)pending=null;if(selectedSlot===index){selectedSlot=null;form.reset();form.hidden=true;}setStatus('Slot '+(index+1)+' is empty. Choose Upload file to add another photo or video.');await refresh();}catch(e){setStatus(e.message);remove.disabled=false;}};actions.append(remove);card.append(actions);list.append(card);
   }}
-  form.onsubmit=async e=>{e.preventDefault();if(busy||selectedSlot===null||!form.reportValidity())return;if(!file.files[0]){setStatus('Choose a photo or video first.');return;}busy=true;root.querySelectorAll('button').forEach(b=>b.disabled=true);try{
+  const uploadSelected=async()=>{
+   if(busy){setStatus('An upload is already processing. Please keep this page open.');return;}
+   setStatus('Checking selected file…');
+   if(selectedSlot===null){setStatus('Choose an empty gallery slot first.');return;}
+   if(!file.files[0]){setStatus('Choose a photo or video first.');return;}
+   if(!title.value.trim())title.value=file.files[0].name.replace(/\.[^.]+$/,'').replace(/[_-]+/g,' ').slice(0,100)||'Gallery photo';
+   if(!form.reportValidity()){setStatus('Upload has not started. Please complete the highlighted field.');return;}
+   busy=true;root.querySelectorAll('button').forEach(b=>b.disabled=true);
+   const waiting=setTimeout(()=>setStatus('This upload is taking longer than expected. Keep this page open while it finishes, or note this message if it remains stuck.'),30000);
+   try{
    let chosen=file.files[0];if(chosen.size>52428800)throw Error('Choose a photo up to 20 MB or video up to 50 MB.');setStatus('Preparing your mediaâ€¦');
    if(P31Workflow.isPhoto(chosen)){
     if(chosen.size>20971520)throw Error('Photos must be 20 MB or smaller.');chosen=await P31Workflow.prepareFile(chosen,[],text=>setStatus(text));
@@ -38,10 +47,12 @@ window.P31GalleryAdmin=(()=>{
    }
    const key=file.files[0].name+':'+file.files[0].size+':'+file.files[0].lastModified;
    if(pending&&pending.key!==key){await api('gallery-remove',{method:'POST',data:{id:pending.id}});pending=null;}
-   if(!pending){const reservation=await api('gallery-reserve',{method:'POST',data:{slot:selectedSlot,mime:chosen.type,bytes:chosen.size,title:title.value.trim(),alt:alt.value.trim()||title.value.trim(),caption:caption.value.trim()}});pending={id:reservation.item.id,url:reservation.signed_url,key};}
+   if(!pending){setStatus('Connecting to gallery storage…');const reservation=await api('gallery-reserve',{method:'POST',data:{slot:selectedSlot,mime:chosen.type,bytes:chosen.size,title:title.value.trim(),alt:alt.value.trim()||title.value.trim(),caption:caption.value.trim()}});pending={id:reservation.item.id,url:reservation.signed_url,key};}
    try{await new Promise((resolve,reject)=>{const xhr=new XMLHttpRequest();xhr.open('PUT',pending.url);xhr.timeout=180000;xhr.upload.onprogress=e=>{if(e.lengthComputable)setStatus('Uploadingâ€¦ '+Math.round(e.loaded/e.total*100)+'%');};xhr.onload=()=>xhr.status>=200&&xhr.status<300?resolve():reject(Error('Upload interrupted. Retry this same file or remove the unfinished item.'));xhr.onerror=xhr.ontimeout=()=>reject(Error('Upload interrupted. Check your connection and retry this same file.'));const data=new FormData();data.append('cacheControl','0');data.append('',chosen);xhr.send(data);});}catch(transferError){try{await api('gallery-finish',{method:'POST',data:{id:pending.id}});}catch{throw transferError;}}
    setStatus('Checking your uploadâ€¦');await api('gallery-finish',{method:'POST',data:{id:pending.id}});pending=null;form.reset();clearSelection();form.hidden=true;selectedSlot=null;setStatus('Draft uploaded. Preview it below, confirm sharing permission, then turn on Show on website and save.');await refresh();
-  }catch(e){setStatus(e.message);try{await refresh();}catch{}}finally{busy=false;await refresh().catch(e=>setStatus(e.message));submit.disabled=items.length>=10&&!pending;}};
+  }catch(e){setStatus(e.message||'Upload failed. Please try again.');}finally{clearTimeout(waiting);busy=false;submit.textContent='Upload selected file';root.querySelectorAll('button').forEach(b=>b.disabled=false);await refresh().catch(e=>setStatus('Could not refresh the gallery: '+e.message));submit.disabled=items.length>=10&&!pending;}};
+  submit.onclick=uploadSelected;
+  form.onsubmit=e=>{e.preventDefault();return uploadSelected();};
   refresh().catch(e=>{setStatus(e.message);const retry=el('button','Retry gallery');retry.onclick=()=>refresh().then(()=>retry.remove()).catch(e=>setStatus(e.message));root.append(retry);});return root;
  }
  return{render};
