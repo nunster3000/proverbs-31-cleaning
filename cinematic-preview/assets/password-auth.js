@@ -2,7 +2,7 @@ window.P31PasswordAuth={
  setup({config,complete,status}){
   const $=s=>document.querySelector(s),form=$('#email-form'),email=$('#sign-in-email'),password=$('#account-password'),confirm=$('#confirm-password'),submit=form.querySelector('button'),options=$('#auth-options'),forgot=$('#forgot-password'),security=$('#password-security');
   let mode='password',recovering=!!config.passwordRecovery,token,loading;
-  const control={get recovering(){return recovering},recover(){recovering=true;select('recovery')},async submit(){
+  const control={get recovering(){return recovering},get awaitingAction(){return recovering||mode==='reset'},recover(){recovering=true;select('recovery')},async submit(){
    if(mode==='link')return false;
    if(['signup','recovery'].includes(mode)&&password.value!==confirm.value)throw Error('The passwords do not match. Please enter them again.');
    const auth=P31Live.client.auth,address=email.value.trim(),redirectTo=location.origin+(config.ownerPreview?'/owner-sign-in.html':'/sign-in.html');
@@ -41,6 +41,6 @@ window.P31PasswordAuth={
   }
   options.querySelectorAll('button').forEach(b=>b.onclick=()=>{if(!submit.disabled)select(b.dataset.authMode)});
   forgot.onclick=()=>{if(!submit.disabled)select('reset')};$('#show-password').onchange=e=>{password.type=confirm.type=e.target.checked?'text':'password'};
-  select(recovering?'recovery':'password');return control;
+  select(recovering?'recovery':new URLSearchParams(location.search||'').get('action')==='reset-password'?'reset':'password');return control;
  }
 };

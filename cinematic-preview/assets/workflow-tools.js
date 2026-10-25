@@ -10,11 +10,19 @@ window.P31Workflow = (() => {
     return true;
   }
   const photoInputTypes=['image/jpeg','image/png','image/webp','image/heic','image/heif','image/heic-sequence','image/heif-sequence','image/avif','image/bmp','image/gif','.jpg','.jpeg','.jfif','.png','.webp','.heic','.heif','.avif','.bmp','.gif'];
-  const inputTypes=[...photoInputTypes,'video/mp4','video/webm','video/quicktime','.mp4','.webm','.mov'];
+  const inputTypes=[...photoInputTypes,'video/mp4','video/webm','video/quicktime','video/mov','video/x-quicktime','.mp4','.webm','.mov'];
   const photoFormats='JPG/JPEG, PNG, WebP, HEIC/HEIF, AVIF, BMP, or GIF (still image)';
   const photoHint='Photos: '+photoFormats+'. Up to 20 MB; large photos are resized automatically.';
   const isPhoto=file=>!!file && (/^image\//i.test(file.type||'') || /\.(jpe?g|jfif|png|webp|hei[cf]|avif|bmp|gif)$/i.test(file.name||''));
+  function normalizeVideo(file){
+    if(!file)return file;
+    const ext=(file.name||'').split('.').pop().toLowerCase();
+    const mime={mov:'video/quicktime',mp4:'video/mp4',webm:'video/webm'}[ext];
+    if(mime && (!file.type || ['application/octet-stream','video/mov','video/x-quicktime','application/quicktime','video/quicktime','video/mp4','video/webm'].includes(file.type)) && file.type!==mime)return new File([file],file.name,{type:mime,lastModified:file.lastModified});
+    return file;
+  }
   async function prepareFile(file,existing=[],progress=()=>{}) {
+    file=normalizeVideo(file);
     if(!file)throw Error('Choose a photo or video.');
     let chosen=file;
     if(isHeic(file))chosen=await prepareHeic(file,existing,progress);
@@ -96,6 +104,6 @@ window.P31Workflow = (() => {
       approvals:freshActivity.some(e=>['accept_quote','record_approval','external_approval'].includes(e.action)) || rows.some(b=>{const old=before.records.find(o=>o.id===b.id);return old && old.quote_status!==b.quote_status && b.quote_status==='accepted'})
     };
   }
-  return {validateFile,prepareFile,inputTypes,photoInputTypes,photoHint,isPhoto,isHeic,totals,types,milestone,syncChanges};
+  return {validateFile,prepareFile,normalizeVideo,inputTypes,photoInputTypes,photoHint,isPhoto,isHeic,totals,types,milestone,syncChanges};
 })();
 

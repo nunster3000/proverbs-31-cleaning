@@ -5,7 +5,7 @@ window.P31GalleryAdmin=(()=>{
   status.className='gallery-upload-status';status.setAttribute('role','status');list.className='gallery-admin-grid';counter.className='gallery-count';hint.className='gallery-hint';root.className='gallery-admin-album';file.type='file';file.accept=P31Workflow.inputTypes.join(',');file.title=P31Workflow.photoHint;file.required=true;title.required=true;title.maxLength=100;alt.maxLength=240;caption.maxLength=1000;submit.type='button';submit.className='primary';form.noValidate=true;
   const field=(text,input)=>{const label=el('label',text);label.append(input);return label;};
   const uploadStatus=el('p'),selectionPreview=el('div');uploadStatus.setAttribute('role','status');uploadStatus.className='gallery-upload-status';
-  const setStatus=text=>{status.textContent=text;uploadStatus.textContent=text;if(busy)submit.textContent=text.startsWith('Uploading')?'Uploading…':'Working…';};
+  const setStatus=text=>{status.textContent=text;uploadStatus.textContent=text;if(busy)submit.textContent=text.startsWith('Uploading')?'Uploadingï¿½':'Workingï¿½';};
   let selectionUrl=null;
   const clearSelection=()=>{if(selectionUrl)URL.revokeObjectURL(selectionUrl);selectionUrl=null;selectionPreview.replaceChildren();};
   file.onchange=()=>{
@@ -19,7 +19,7 @@ window.P31GalleryAdmin=(()=>{
     setStatus('File selected. Review the title, then click Upload selected file.');
   };
   form.addEventListener('invalid',()=>setStatus('Please complete the highlighted field before uploading.'),true);
-  form.className='card';form.append(el('h3','Add a photo or video'),field('Photo or video',file),field('Title',title),field('Describe the photo/video for visitors who cannot see it',alt),field('Caption (optional)',caption),el('p',P31Workflow.photoHint+' HEIC photos convert automatically. Videos up to 50 MB; MP4 is recommended. Photo location metadata is removed during preparation.'),selectionPreview,uploadStatus,submit);
+  form.className='card';form.append(el('h3','Add a photo or video'),field('Photo or video',file),field('Title',title),field('Describe the photo/video for visitors who cannot see it',alt),field('Caption (optional)',caption),el('p',P31Workflow.photoHint+' HEIC photos convert automatically. MOV, MP4, and WebM videos up to 50 MB. MP4 is recommended for the widest playback support. Photo location metadata is removed during preparation.'),selectionPreview,uploadStatus,submit);
   form.hidden=true;root.append(h,hint,counter,status,list);root.addEventListener("input",()=>onDirty(true));root.addEventListener("change",()=>onDirty(true));
   async function refresh(){const data=await api('gallery',{query:{manage:'1'}});items=data.items;onDirty(!!pending||selectedSlot!==null);counter.textContent=items.length+' / 10 gallery spaces used';submit.disabled=busy||(items.length>=10&&!pending);list.replaceChildren();for(let index=0;index<10;index++){const item=items.find(x=>x.position===index);if(!item){const empty=el('article');empty.className='gallery-admin-card gallery-admin-empty';empty.append(el('p','Slot '+(index+1)),el('span','+'),el('h3','Add a photo or video'));const add=el('button','Upload file');add.type='button';add.className='outline';add.disabled=busy||!!pending;add.setAttribute('aria-label','Upload file to slot '+(index+1));add.onclick=()=>{selectedSlot=index;form.reset();clearSelection();setStatus('Choose a file, then click Upload selected file to save it in this slot.');onDirty(true);form.hidden=false;empty.append(form);form.querySelector('h3').textContent='Upload to slot '+(index+1);file.click();};empty.append(add);list.append(empty);if(selectedSlot===index&&!form.hidden)empty.append(form);continue;}
    const card=el('article');card.className='gallery-admin-card';card.append(el('p','Slot '+(index+1)),el('h3',item.title),el('p',item.state==='uploading'?'Upload unfinished Â· remove to free this space':item.published?'Visible on website':'Draft Â· only you can see this'));
@@ -32,7 +32,7 @@ window.P31GalleryAdmin=(()=>{
   }}
   const uploadSelected=async()=>{
    if(busy){setStatus('An upload is already processing. Please keep this page open.');return;}
-   setStatus('Checking selected file…');
+   setStatus('Checking selected fileï¿½');
    if(selectedSlot===null){setStatus('Choose an empty gallery slot first.');return;}
    if(!file.files[0]){setStatus('Choose a photo or video first.');return;}
    if(!title.value.trim())title.value=file.files[0].name.replace(/\.[^.]+$/,'').replace(/[_-]+/g,' ').slice(0,100)||'Gallery photo';
@@ -40,14 +40,14 @@ window.P31GalleryAdmin=(()=>{
    busy=true;root.querySelectorAll('button').forEach(b=>b.disabled=true);
    const waiting=setTimeout(()=>setStatus('This upload is taking longer than expected. Keep this page open while it finishes, or note this message if it remains stuck.'),30000);
    try{
-   let chosen=file.files[0];if(chosen.size>52428800)throw Error('Choose a photo up to 20 MB or video up to 50 MB.');setStatus('Preparing your mediaâ€¦');
+   let chosen=P31Workflow.normalizeVideo(file.files[0]);if(chosen.size>52428800)throw Error('Choose a photo up to 20 MB or video up to 50 MB.');setStatus('Preparing your mediaâ€¦');
    if(P31Workflow.isPhoto(chosen)){
     if(chosen.size>20971520)throw Error('Photos must be 20 MB or smaller.');chosen=await P31Workflow.prepareFile(chosen,[],text=>setStatus(text));
     const bitmap=await createImageBitmap(chosen),canvas=document.createElement('canvas'),scale=Math.min(1,2560/Math.max(bitmap.width,bitmap.height));canvas.width=Math.round(bitmap.width*scale);canvas.height=Math.round(bitmap.height*scale);canvas.getContext('2d').drawImage(bitmap,0,0,canvas.width,canvas.height);bitmap.close();const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',.9));if(!blob)throw Error('This photo could not be prepared. Choose another photo.');chosen=new File([blob],'gallery-photo.jpg',{type:'image/jpeg'});
    }
    const key=file.files[0].name+':'+file.files[0].size+':'+file.files[0].lastModified;
    if(pending&&pending.key!==key){await api('gallery-remove',{method:'POST',data:{id:pending.id}});pending=null;}
-   if(!pending){setStatus('Connecting to gallery storage…');const reservation=await api('gallery-reserve',{method:'POST',data:{slot:selectedSlot,mime:chosen.type,bytes:chosen.size,title:title.value.trim(),alt:alt.value.trim()||title.value.trim(),caption:caption.value.trim()}});pending={id:reservation.item.id,url:reservation.signed_url,key};}
+   if(!pending){setStatus('Connecting to gallery storageï¿½');const reservation=await api('gallery-reserve',{method:'POST',data:{slot:selectedSlot,mime:chosen.type,bytes:chosen.size,title:title.value.trim(),alt:alt.value.trim()||title.value.trim(),caption:caption.value.trim()}});pending={id:reservation.item.id,url:reservation.signed_url,key};}
    try{await new Promise((resolve,reject)=>{const xhr=new XMLHttpRequest();xhr.open('PUT',pending.url);xhr.timeout=180000;xhr.upload.onprogress=e=>{if(e.lengthComputable)setStatus('Uploadingâ€¦ '+Math.round(e.loaded/e.total*100)+'%');};xhr.onload=()=>xhr.status>=200&&xhr.status<300?resolve():reject(Error('Upload interrupted. Retry this same file or remove the unfinished item.'));xhr.onerror=xhr.ontimeout=()=>reject(Error('Upload interrupted. Check your connection and retry this same file.'));const data=new FormData();data.append('cacheControl','0');data.append('',chosen);xhr.send(data);});}catch(transferError){try{await api('gallery-finish',{method:'POST',data:{id:pending.id}});}catch{throw transferError;}}
    setStatus('Checking your uploadâ€¦');await api('gallery-finish',{method:'POST',data:{id:pending.id}});pending=null;form.reset();clearSelection();form.hidden=true;selectedSlot=null;setStatus('Draft uploaded. Preview it below, confirm sharing permission, then turn on Show on website and save.');await refresh();
   }catch(e){setStatus(e.message||'Upload failed. Please try again.');}finally{clearTimeout(waiting);busy=false;submit.textContent='Upload selected file';root.querySelectorAll('button').forEach(b=>b.disabled=false);await refresh().catch(e=>setStatus('Could not refresh the gallery: '+e.message));submit.disabled=items.length>=10&&!pending;}};

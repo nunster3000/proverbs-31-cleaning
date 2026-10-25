@@ -53,7 +53,7 @@
     // Subscribe before reading: session restoration and email callbacks can finish
     // between the first read and listener registration. SDK callbacks stay synchronous.
     async function resume() {
-      if(passwords?.recovering || (config.passwordRecovery && !passwords))return false;
+      if(passwords?.awaitingAction || (config.passwordRecovery && !passwords))return false;
       if (redirected) return true;
       if (opening) return opening;
       opening = (async () => {
