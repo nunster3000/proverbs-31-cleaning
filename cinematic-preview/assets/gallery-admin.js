@@ -7,12 +7,16 @@ window.P31GalleryAdmin=(()=>{
   const uploadStatus=el('p'),selectionPreview=el('div');uploadStatus.setAttribute('role','status');uploadStatus.className='gallery-upload-status';
   const setStatus=text=>{status.textContent=text;uploadStatus.textContent=text;if(busy)submit.textContent=text.startsWith('Uploading')?'Uploading�':'Working�';};
   let selectionUrl=null;
+  const sizeLabel=bytes=>(Math.ceil(bytes/1048576*100)/100).toFixed(2)+' MB';
+  const sizeError=chosen=>!chosen.size?'This file is empty. Choose another file.':chosen.size>(P31Workflow.isPhoto(chosen)?20971520:52428800)?'File too large: '+sizeLabel(chosen.size)+'. The '+(P31Workflow.isPhoto(chosen)?'photo limit is 20 MB.':'video limit is 50 MB.')+' Nothing has been uploaded. '+(P31Workflow.isPhoto(chosen)?'Choose a smaller photo.':'Trim or compress the video, then select the smaller file.') : '';
+  const showError=text=>{setStatus(text);uploadStatus.setAttribute('role','alert');uploadStatus.className='gallery-upload-status gallery-upload-error';};
   const clearSelection=()=>{if(selectionUrl)URL.revokeObjectURL(selectionUrl);selectionUrl=null;selectionPreview.replaceChildren();};
   file.onchange=()=>{
-    clearSelection();const chosen=file.files[0];if(!chosen){setStatus('Choose a photo or video to begin.');return;}
+    clearSelection();uploadStatus.setAttribute('role','status');uploadStatus.className='gallery-upload-status';const chosen=file.files[0];submit.disabled=busy;if(!chosen){setStatus('Choose a photo or video to begin.');return;}
     onDirty(true);
     if(!title.value.trim())title.value=chosen.name.replace(/\.[^.]+$/,'').replace(/[_-]+/g,' ').slice(0,100);
-    selectionPreview.append(el('p',chosen.name+' - '+(chosen.size/1048576).toFixed(1)+' MB'));
+    const summary=el('p',chosen.name+' — File size: '+sizeLabel(chosen.size)+' / '+(P31Workflow.isPhoto(chosen)?'20':'50')+' MB maximum');summary.className='gallery-file-summary';selectionPreview.append(summary);
+    const problem=sizeError(chosen);if(problem){showError(problem);submit.disabled=true;return;}
     if(['image/jpeg','image/png','image/webp','image/gif','image/avif','image/bmp'].includes(chosen.type)){
       selectionUrl=URL.createObjectURL(chosen);const preview=el('img');preview.src=selectionUrl;preview.alt='Selected gallery photo preview';selectionPreview.append(preview);
     }
@@ -35,6 +39,7 @@ window.P31GalleryAdmin=(()=>{
    setStatus('Checking selected file�');
    if(selectedSlot===null){setStatus('Choose an empty gallery slot first.');return;}
    if(!file.files[0]){setStatus('Choose a photo or video first.');return;}
+   const problem=sizeError(file.files[0]);if(problem){showError(problem);submit.disabled=true;return;}
    if(!title.value.trim())title.value=file.files[0].name.replace(/\.[^.]+$/,'').replace(/[_-]+/g,' ').slice(0,100)||'Gallery photo';
    if(!form.reportValidity()){setStatus('Upload has not started. Please complete the highlighted field.');return;}
    busy=true;root.querySelectorAll('button').forEach(b=>b.disabled=true);
@@ -50,7 +55,7 @@ window.P31GalleryAdmin=(()=>{
    if(!pending){setStatus('Connecting to gallery storage�');const reservation=await api('gallery-reserve',{method:'POST',data:{slot:selectedSlot,mime:chosen.type,bytes:chosen.size,title:title.value.trim(),alt:alt.value.trim()||title.value.trim(),caption:caption.value.trim()}});pending={id:reservation.item.id,url:reservation.signed_url,key};}
    try{await new Promise((resolve,reject)=>{const xhr=new XMLHttpRequest();xhr.open('PUT',pending.url);xhr.timeout=180000;xhr.upload.onprogress=e=>{if(e.lengthComputable)setStatus('Uploading… '+Math.round(e.loaded/e.total*100)+'%');};xhr.onload=()=>xhr.status>=200&&xhr.status<300?resolve():reject(Error('Upload interrupted. Retry this same file or remove the unfinished item.'));xhr.onerror=xhr.ontimeout=()=>reject(Error('Upload interrupted. Check your connection and retry this same file.'));const data=new FormData();data.append('cacheControl','0');data.append('',chosen);xhr.send(data);});}catch(transferError){try{await api('gallery-finish',{method:'POST',data:{id:pending.id}});}catch{throw transferError;}}
    setStatus('Checking your upload…');await api('gallery-finish',{method:'POST',data:{id:pending.id}});pending=null;form.reset();clearSelection();form.hidden=true;selectedSlot=null;setStatus('Draft uploaded. Preview it below, confirm sharing permission, then turn on Show on website and save.');await refresh();
-  }catch(e){setStatus(e.message||'Upload failed. Please try again.');}finally{clearTimeout(waiting);busy=false;submit.textContent='Upload selected file';root.querySelectorAll('button').forEach(b=>b.disabled=false);await refresh().catch(e=>setStatus('Could not refresh the gallery: '+e.message));submit.disabled=items.length>=10&&!pending;}};
+  }catch(e){showError(e.message||'Upload failed. Please try again.');}finally{clearTimeout(waiting);busy=false;submit.textContent='Upload selected file';root.querySelectorAll('button').forEach(b=>b.disabled=false);await refresh().catch(e=>showError('Could not refresh the gallery: '+e.message));submit.disabled=(items.length>=10&&!pending)||!!(file.files[0]&&sizeError(file.files[0]));}};
   submit.onclick=uploadSelected;
   form.onsubmit=e=>{e.preventDefault();return uploadSelected();};
   refresh().catch(e=>{setStatus(e.message);const retry=el('button','Retry gallery');retry.onclick=()=>refresh().then(()=>retry.remove()).catch(e=>setStatus(e.message));root.append(retry);});return root;

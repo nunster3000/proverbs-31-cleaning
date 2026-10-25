@@ -13,3 +13,15 @@ test('gallery selection supplies a title and explicitly distinguishes selected f
 test('gallery failures remain visible beside the upload button and allow retry',async()=>{const h=await harness();h.root.querySelectorAll('button').find(b=>b.textContent==='Upload file').onclick();const file=h.elements.find(e=>e.type==='file');file.files=[new File(['video'],'Room.mov',{type:'video/quicktime'})];file.onchange();const form=h.elements.find(e=>e.tagName==='form');await h.elements.find(e=>e.textContent==='Upload selected file').onclick();assert.ok(form.children.some(e=>e.textContent==='Connection unavailable. Please retry.'));assert.equal(h.elements.find(e=>e.textContent==='Upload selected file').disabled,false);assert.equal(h.dirty.at(-1),true);});
 
 test('gallery click surfaces validation errors without depending on native submit dispatch',async()=>{const h=await harness();h.root.querySelectorAll('button').find(b=>b.textContent==='Upload file').onclick();const file=h.elements.find(e=>e.type==='file');file.files=[new File(['video'],'Room.mov',{type:'video/quicktime'})];file.onchange();const form=h.elements.find(e=>e.tagName==='form');form.reportValidity=()=>false;const button=h.elements.find(e=>e.textContent==='Upload selected file');assert.equal(button.type,'button');await button.onclick();assert.ok(form.children.some(e=>e.textContent==='Upload has not started. Please complete the highlighted field.'));});
+
+test('oversized MOV shows size and immediate error, blocks upload, and recovers with smaller selection',async()=>{
+ const h=await harness();h.root.querySelectorAll('button').find(b=>b.textContent==='Upload file').onclick();
+ const file=h.elements.find(e=>e.type==='file'),button=h.elements.find(e=>e.textContent==='Upload selected file');
+ file.files=[{name:'Large.MOV',type:'video/quicktime',size:75*1048576}];file.onchange();
+ assert.ok(h.elements.some(e=>e.textContent.includes('File size: 75.00 MB / 50 MB maximum')));
+ const status=h.elements.find(e=>e.role==='alert');assert.match(status.textContent,/File too large.*75.00 MB.*50 MB.*Nothing has been uploaded/);
+ assert.equal(button.disabled,true);await button.onclick();assert.match(status.textContent,/File too large/);
+ file.files=[{name:'Smaller.MOV',type:'video/quicktime',size:50*1048576}];file.onchange();
+ assert.equal(button.disabled,false);assert.equal(status.role,'status');assert.doesNotMatch(status.textContent,/File too large/);
+ file.files=[{name:'Just-over.MOV',type:'video/quicktime',size:50*1048576+1}];file.onchange();assert.equal(button.disabled,true);assert.match(status.textContent,/50.01 MB/);
+});
