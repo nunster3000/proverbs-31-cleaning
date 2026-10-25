@@ -17,7 +17,8 @@ function createAuthEmailHandler({env=process.env,send=fetch}={}){
   const {user,email_data:data}=payload||{};
   // Accept only authentication actions rendered by this application.
   if(!['signup','magiclink','recovery'].includes(data?.email_action_type)||!user?.email||!/^\S+@\S+\.\S+$/.test(user.email)||!/^[a-zA-Z0-9_-]{20,256}$/.test(data.token_hash||''))return reply(422,{error:'Unsupported authentication email'});
-  let callback=new URL('/sign-in.html',origin);
+  const defaultPath=data.email_action_type==='recovery' && env.OWNER_PRELAUNCH_ENABLED==='true' && require('./launch-clock.cjs').launchState(env).pending?'/owner-sign-in.html':'/sign-in.html';
+  let callback=new URL(defaultPath,origin);
   try{const requested=new URL(data.redirect_to);if(requested.origin===origin&&['/sign-in.html','/owner-sign-in.html'].includes(requested.pathname))callback=new URL(requested.pathname,origin);}catch{}
   callback.searchParams.set('token_hash',data.token_hash);callback.searchParams.set('type',data.email_action_type==='recovery'?'recovery':'email');
   const signup=data.email_action_type==='signup',recovery=data.email_action_type==='recovery',subject=signup?'Confirm your Proverbs 31 account':recovery?'Reset your Proverbs 31 password':'Your Proverbs 31 sign-in link';
