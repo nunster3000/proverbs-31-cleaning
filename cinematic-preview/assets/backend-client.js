@@ -27,7 +27,7 @@ window.P31Live = (() => {
         },
       });
       if (config.authEnabled && callback) {
-        try { await window.P31AuthCallback.finish(client.auth, callback); }
+        try { config.passwordRecovery=await window.P31AuthCallback.finish(client.auth, callback); }
         catch (error) { config.callbackError = error.message; }
       }
     }
@@ -134,7 +134,9 @@ window.P31Live = (() => {
       close.className = "outline";
       close.textContent = "Back";
       close.onclick = () => dialog.close();
-      dialog.append(h, p, security, send, status, close);
+      const passwordOption=document.createElement('a');passwordOption.href=config.ownerPreview?'/owner-sign-in.html':'/sign-in.html';passwordOption.target='_blank';passwordOption.rel='noopener';passwordOption.textContent='Use a password or create an account in a new tab';
+      const returnNote=document.createElement('p');returnNote.textContent='After signing in there, return to this tab to continue.';
+      dialog.append(h, p, security, send, passwordOption,returnNote,status, close);
       document.body.append(dialog);
       let getToken = () => {if(config.turnstileSiteKey)throw new Error("Wait for the security check to load.");return null;};
       captcha(security)

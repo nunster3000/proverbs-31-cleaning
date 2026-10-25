@@ -14,3 +14,4 @@ test('forged, expired, unconfigured and unsupported auth hooks never send',async
  for(const options of [{signature:false},{offset:-600000},{configured:false},{type:'unknown'}]){const r=await run(options);assert.ok(r.status>=400);assert.equal(r.outgoing,undefined);}
  assert.equal((await run({sendOk:false})).status,502);
 });
+test('password recovery uses noreply and a recovery callback on the allowed sign-in page',async()=>{const r=await run({type:'recovery',redirect:'https://www.proverbs31cleaningcoservices.info/owner-sign-in.html'});assert.equal(r.status,200);assert.match(r.outgoing.from,/<noreply@/);assert.match(r.outgoing.subject,/Reset/);assert.match(r.outgoing.html,/Choose a new password/);assert.match(r.outgoing.html,/owner-sign-in.html\?token_hash=.*type=recovery/);assert.doesNotMatch(r.outgoing.html,/type=email/);});

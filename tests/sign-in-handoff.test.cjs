@@ -1,10 +1,10 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const source=fs.readFileSync('cinematic-preview/assets/sign-in.js','utf8');
 const settle=()=>new Promise(r=>setImmediate(r));
-function page({ownerPreview=true,role='owner',callbackReceived=false,callbackError,session=null}={}){
+function page({ownerPreview=true,role='owner',callbackReceived=false,callbackError,passwordRecovery=false,session=null}={}){
  const button={},email={},status={},events={},redirects=[];let listener,reads=0,calls=0,current=session;
  const form={querySelector:()=>button,reportValidity:()=>true};
- const P31Live={init:async()=>({enabled:true,authEnabled:true,ownerPreview,callbackReceived,callbackError}),api:async()=>{calls++;return{role}},client:{auth:{getSession:async()=>{reads++;return{data:{session:current}}},onAuthStateChange:f=>{listener=f}}}};
+ const P31Live={init:async()=>({enabled:true,authEnabled:true,ownerPreview,callbackReceived,callbackError,passwordRecovery}),api:async()=>{calls++;return{role}},client:{auth:{getSession:async()=>{reads++;return{data:{session:current}}},onAuthStateChange:f=>{listener=f}}}};
  const context={document:{querySelector:s=>({'#email-form':form,'#sign-in-email':email,'#sign-in-status':status}[s])},P31Live,window:{addEventListener:(e,f)=>events[e]=f},location:{search:'',hash:'',replace:p=>redirects.push(p)},history:{replaceState(){}},URLSearchParams,setTimeout};
  return{run:()=>vm.runInNewContext(source,context),emit:(event,s)=>{current=s;listener?.(event,s)},events,status,redirects,counts:()=>({reads,calls}),P31Live};
 }
@@ -29,3 +29,5 @@ test('backend initialization cannot return partially initialized configuration t
  const context={window:{location:{pathname:'/sign-in.html'},createSupabaseClient:()=>{created++;return{auth:{}}}},location:{search:''},URLSearchParams,fetch:async()=>({ok:true,json:()=>new Promise(r=>release=()=>r(config))}),Map,WeakMap,Set,console,setTimeout,clearTimeout};
  vm.runInNewContext(code,context);const a=context.window.P31Live.init();await settle();const b=context.window.P31Live.init();assert.equal(a,b);assert.equal(created,0);release();await a;assert.equal(created,1);assert.equal(context.window.P31Live.client.auth!==undefined,true);
 });
+
+test('verified recovery sessions do not auto-redirect before the password form takes control',async()=>{const p=page({passwordRecovery:true,session});await p.run();p.emit('SIGNED_IN',session);await new Promise(r=>setTimeout(r,10));assert.deepEqual(p.redirects,[]);});

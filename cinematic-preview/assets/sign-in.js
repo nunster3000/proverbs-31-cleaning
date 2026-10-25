@@ -4,7 +4,7 @@
   const email = document.querySelector('#sign-in-email');
   const status = document.querySelector('#sign-in-status');
   try{if(new URLSearchParams(location.search).get('next')==='class-booking')sessionStorage.setItem('p31-class-return','1');}catch{}
-  let busy = false, ownerPreview=false, opening, redirected=false;
+  let busy = false, ownerPreview=false, opening, redirected=false,passwords;
   async function openWorkspace() {
     // Role and email verification come from the authenticated API, never the URL.
     const me = await P31Live.api('me');
@@ -34,12 +34,15 @@
     }
     button.disabled = false;
     email.disabled = false;
+    passwords=window.P31PasswordAuth?.setup({config,complete:()=>resume(),status});
+    if(config.callbackError)status.textContent=config.callbackError;
     form.onsubmit = async event => {
       event.preventDefault();
       if (busy || !form.reportValidity()) return;
       busy = true; button.disabled = true;
       status.textContent = '';
       try {
+        if(await passwords?.submit())return;
         if (await P31Live.signIn(email.value.trim())) await resume();
       } catch (e) {
         status.textContent = e.message || 'Unable to sign in. Please try again.';
@@ -50,6 +53,7 @@
     // Subscribe before reading: session restoration and email callbacks can finish
     // between the first read and listener registration. SDK callbacks stay synchronous.
     async function resume() {
+      if(passwords?.recovering || (config.passwordRecovery && !passwords))return false;
       if (redirected) return true;
       if (opening) return opening;
       opening = (async () => {
@@ -64,13 +68,14 @@
       setTimeout(() => resume().catch(e => {status.textContent=e.message;}), 0);
     }
     P31Live.client.auth.onAuthStateChange((event, session) => {
+      if(event==='PASSWORD_RECOVERY'){passwords?.recover();return;}
       if (['INITIAL_SESSION', 'SIGNED_IN', 'TOKEN_REFRESHED'].includes(event) && session && !session.user.is_anonymous)
         scheduleResume();
     });
     window.addEventListener('pageshow', scheduleResume);
     window.addEventListener('focus', scheduleResume);
     if (await resume()) return;
-    if (config.callbackReceived && !config.callbackError) {
+    if (config.callbackReceived && !config.callbackError && !passwords?.recovering) {
       status.textContent = 'Finishing your secure sign-in…';
       // A bounded fallback also covers browsers that restore storage after their
       // initial auth event. No reload and no repeated email request is needed.

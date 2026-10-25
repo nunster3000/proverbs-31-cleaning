@@ -20,24 +20,24 @@
       <div class="eyebrow">YOUR HOME FOR THOUGHTFUL CARE</div>
       <h1>Welcome home.</h1>
       <p>
-        Sign in or create your account with a secure email link. Customers and the business owner use the same sign-in.
+        Choose a password or a secure email link. Your account keeps your visits, classes, and updates together.
       </p>
-      <form id="email-form">
+      <div class="auth-options" id="auth-options" aria-label="Choose how to access your account"><button type="button" data-auth-mode="password" aria-pressed="true">Password</button><button type="button" data-auth-mode="link" aria-pressed="false">Email link</button><button type="button" data-auth-mode="signup" aria-pressed="false">Create account</button></div><form id="email-form">
         <label
           >Email address<input
             id="sign-in-email" disabled
             type="email"
             autocomplete="email"
             required /></label
-        ><button class="primary" disabled>Continue with email</button>
+        ><label id="password-label">Password<input id="account-password" type="password" autocomplete="current-password" required /></label><label id="confirm-password-label" hidden>Confirm password<input id="confirm-password" type="password" autocomplete="new-password" /></label><label id="show-password-label" class="show-password"><input id="show-password" type="checkbox" /> Show password</label><p id="password-help" class="fine"></p><div id="password-security"></div><button class="primary" disabled>Sign in with password</button>
       </form>
-      <p id="sign-in-status" role="status"></p>
-      <p class="sign-in-help">No password needed. Your account opens the workspace available to you.</p>
+      <button type="button" id="forgot-password" class="auth-reset">Forgot password / set your first password</button><p id="sign-in-status" role="status"></p>
+      <p class="sign-in-help">Already use email links? Choose “set your first password” to add a password to the same account.</p>
       <div class="sign-in-links"><a href="care.html">Plan my cleaning</a><a href="contact.html">Need help?</a></div>
     <p class="fine"><a href="privacy.html">Privacy</a> · <a href="service-information.html">Booking information</a></p></main><footer class="site-social-footer" data-social-footer hidden><nav class="social-links" data-social-links hidden aria-label="Follow Proverbs 31 Cleaning Company"></nav></footer>
     <script src="assets/auth-callback.js"></script>
     <script src="assets/backend-client.js"></script>
-    <script src="assets/sign-in.js"></script>
+    <script src="assets/password-auth.js"></script><script src="assets/sign-in.js"></script>
 
 <script src="assets/social-links.js"></script><script src="assets/site-content.js"></script>
 </body>
