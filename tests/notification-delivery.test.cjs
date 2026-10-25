@@ -2,6 +2,17 @@ const {test}=require('node:test'),assert=require('node:assert/strict');
 const {createNotificationHandler}=require('../cinematic-preview/server/notifications.cjs');
 const job={id:'job1',lease_id:'lease1',kind:'booking_requested',recipient:'customer@example.com',snapshot:{account_enabled:true,booking:{id:'ref1',visit_date:'2026-11-02',arrival:'morning',quote_snapshot:{service:'Standard',space:'1 Bedroom',total_cents:11000},final_cents:null,deposit_paid_cents:0,final_paid_cents:0}}};
 const env={AUTH_ENABLED:'true',NOTIFICATIONS_ENABLED:'true',CRON_SECRET:'test-secret',RESEND_API_KEY:'test-key',SUPABASE_SERVICE_ROLE_KEY:'test-service',SUPABASE_URL:'https://example.supabase.co'};
+test('class registration and paid confirmation emails deliver schedule, group and business address',async()=>{
+ const booking={...job.snapshot.booking,service:'class',status:'requested',property:{address:'Example Hotel & Suites, 123 Sample St, New Orleans, LA 70112'},quote_snapshot:{service:'Cleaning Skills & Business Foundations',students:3,tier:'standard'},final_cents:29700,class_payment_due_at:'2026-10-31T14:00:00Z'};
+ for(const kind of ['booking_requested','payment_received']){
+  let payload;const paid=kind==='payment_received';const notice={...job,kind,snapshot:{account_enabled:true,booking:{...booking,status:paid?'confirmed':'requested',deposit_paid_cents:paid?3000:0}}};
+  const result=await run({claimedJobs:[notice],send:async(u,o)=>{payload=JSON.parse(o.body);return{ok:true,json:async()=>({id:'class-email'})}}});
+  assert.equal(result.out.sent,1);assert.deepEqual(payload.to,['customer@example.com']);
+  for(const text of ['2026-11-02','9:00 AM Eastern Time','Example Hotel','123 Sample St','Final payment due','48 hours']){assert.ok(payload.text.includes(text),text);assert.ok(payload.html.includes(text),text);}
+  assert.match(payload.text,/Students: 3/);assert.match(payload.html,/Hotel &amp; Suites/);assert.doesNotMatch(payload.html,/home-access|walkthrough|delivery preference/);
+  assert.match(payload.subject,paid?/class is confirmed/:/registration was received/);
+ }
+});
 async function run({claimedJobs=[job],settings=env,bearer='Bearer test-secret',send=async()=>({ok:true,json:async()=>({id:'email1'})}),method='GET',url='/api/notifications',clock}={}){const calls=[];let out,status;const h=createNotificationHandler({env:settings,send,clock,clientFactory:()=>({rpc:async(name,args)=>{calls.push([name,args]);return {data:['api_notification_claim','service_rehearsal_notification_claim'].includes(name)?claimedJobs:true}}})});await h({method,url,headers:{authorization:bearer}},{setHeader(){},set statusCode(v){status=v},end(v){out=JSON.parse(v)}});return {calls,out,status};}
 test('notifications reject unauthenticated cron calls and stay closed when public sign-in is disabled',async()=>{assert.equal((await run({bearer:'wrong'})).status,401);const r=await run({settings:{...env,AUTH_ENABLED:'false'}});assert.equal(r.out.sent,0);assert.equal(r.calls.length,0);});
 test('scheduled notifications use the same launch clock as login and retain independent email/hold switches',async()=>{
