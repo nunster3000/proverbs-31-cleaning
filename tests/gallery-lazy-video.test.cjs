@@ -1,0 +1,14 @@
+const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+class Element{
+ constructor(tag){this.tagName=tag;this.children=[];this.attributes={};this.style={setProperty(){}};this.listeners={};this.classList={add(){},remove(){}};this.dataset={};}
+ append(...nodes){this.children.push(...nodes)} after(){} setAttribute(k,v){this.attributes[k]=v} removeAttribute(k){delete this[k]} addEventListener(k,f){this.listeners[k]=f} replaceChildren(...nodes){this.children=nodes} focus(){} pause(){this.paused=true} load(){this.loadCount=(this.loadCount||0)+1} showModal(){this.open=true} close(){this.open=false;this.listeners.close?.()}
+ querySelectorAll(tag){return this.children.flatMap(n=>[...(n.tagName===tag?[n]:[]),...n.querySelectorAll(tag)])}
+}
+async function setup(){const root=new Element('section'),grid=new Element('div'),status=new Element('p'),body=new Element('body');root.dataset.workGallery='home';root.querySelector=s=>s==='[data-gallery-grid]'?grid:status;const filters=['all','video','photo'].map(f=>{const b=new Element('button');b.dataset.galleryFilter=f;return b});root.querySelectorAll=()=>filters;const elements=[];
+ const items=[{id:'v1',kind:'video',url:'https://storage.test/large.mov',thumbnail_url:'/assets/small.jpg',title:'Video',alt:'Room'},{id:'v2',kind:'video',url:'https://storage.test/second.mov',title:'Second video'},{id:'p1',kind:'photo',url:'/photo.jpg',title:'Photo'}];
+ vm.runInNewContext(fs.readFileSync('cinematic-preview/assets/work-gallery.js','utf8'),{document:{querySelector:()=>root,body,createElement:t=>{const e=new Element(t);elements.push(e);return e}},fetch:async()=>({ok:true,json:async()=>({items})}),Date,setTimeout});await new Promise(r=>setImmediate(r));return{root,grid,body,elements,filters};}
+test('cover-flow browsing loads only thumbnails; opening attaches one video, closing releases it',async()=>{const h=await setup();assert.equal(h.elements.filter(e=>e.tagName==='video').length,0);assert.equal(h.grid.children[0].children.find(e=>e.tagName==='img').src,'/assets/small.jpg');assert.equal(h.grid.children[1].children.find(e=>e.tagName==='img').src,'/assets/gallery-video-cover.svg');
+ h.elements.find(e=>e.attributes['aria-label']==='Next cover').onclick();assert.equal(h.grid.children[1].attributes['aria-current'],'true');assert.equal(h.elements.filter(e=>e.tagName==='video').length,0);
+ await h.grid.children[1].onclick();const video=h.elements.find(e=>e.tagName==='video');assert.equal(video.src,'https://storage.test/second.mov');assert.equal(video.preload,'none');assert.equal(h.body.children[0].open,true);h.elements.find(e=>e.attributes['aria-label']==='Close gallery').onclick();assert.equal(video.src,undefined);assert.equal(video.paused,true);
+ h.filters[1].onclick();assert.equal(h.grid.children.length,2);assert.equal(h.grid.querySelectorAll('video').length,0);
+});

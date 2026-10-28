@@ -8,3 +8,4 @@
 @media(prefers-reduced-motion:reduce){.gallery-flow .gallery-tile{transition:opacity .12s!important;-webkit-box-reflect:none}}
 
 .gallery-file-summary{padding:14px;border:1px solid #b89b63;border-radius:8px;background:#f6f0fa;color:#462d59;font:600 15px/1.6 Arial,sans-serif;overflow-wrap:anywhere}.gallery-upload-error{padding:14px;border:2px solid #a32936;border-radius:8px;background:#fff1f2;color:#8c1f2b;font-weight:600}.gallery-admin-card button:disabled{opacity:.55;cursor:not-allowed}
+.gallery-admin-video-preview{position:relative;display:block;width:100%;padding:0;border:1px solid #b99a5e;border-radius:9px;overflow:hidden;background:#352440;cursor:pointer}.gallery-admin-video-preview span{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);padding:9px 15px;border-radius:24px;background:#352440ed;color:#fff5df;white-space:nowrap}.gallery-admin-video-preview img{display:block}
